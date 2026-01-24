@@ -1,3 +1,7 @@
+/* =========================
+   Base
+   ========================= */
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
@@ -10,32 +14,8 @@ a {
   text-decoration: none;
 }
 
-.container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 3rem 1.25rem;
-  background: white;
-}
-
-.site-header {
-  background: #f6f7f8;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.brand {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-nav a {
-  margin-left: 1rem;
-  font-size: 0.9rem;
+p {
+  line-height: 1.6;
 }
 
 h1 {
@@ -48,9 +28,74 @@ h2 {
   margin-bottom: 1rem;
 }
 
-p {
-  line-height: 1.6;
+/* =========================
+   Layout helpers
+   ========================= */
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+  background: white;
 }
+
+/* =========================
+   Header / Navigation
+   ========================= */
+
+.site-header {
+  background: #f6f7f8;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* IMPORTANT: override .container styling inside the header */
+.site-header .container {
+  background: transparent;
+  padding: 1rem 1.25rem;
+}
+
+.site-header .nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap; /* allows wrapping on narrow screens */
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  flex: 1 1 240px; /* gives brand a reasonable width before wrapping */
+}
+
+/* nav link group */
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;         /* links can wrap to next row */
+  gap: 0.75rem;            /* spacing between links */
+  justify-content: flex-end;
+  align-items: center;
+  flex: 1 1 320px;
+}
+
+/* CRITICAL: prevent words inside a link from splitting into two lines */
+.site-header nav a {
+  white-space: nowrap;
+  display: inline-block;
+  font-size: 0.9rem;
+  line-height: 1.1;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+}
+
+.site-header nav a:active {
+  background: #e5e7eb;
+}
+
+/* =========================
+   CTA + Gallery
+   ========================= */
 
 .cta {
   margin-top: 2rem;
@@ -73,9 +118,41 @@ p {
   height: 150px;
 }
 
+/* =========================
+   Footer
+   ========================= */
+
 .site-footer {
   background: #f6f7f8;
   border-top: 1px solid #e5e7eb;
   text-align: center;
   font-size: 0.85rem;
+}
+
+/* IMPORTANT: override .container styling inside the footer too */
+.site-footer .container {
+  background: transparent;
+  padding: 2rem 1.25rem;
+}
+
+/* =========================
+   Mobile tweaks
+   ========================= */
+
+@media (max-width: 600px) {
+  .container {
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    font-size: 1.85rem;
+  }
+
+  .brand {
+    flex: 1 1 100%;
+  }
+
+  .site-header nav {
+    justify-content: flex-start;
+  }
 }
