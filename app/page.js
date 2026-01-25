@@ -1,49 +1,79 @@
 export default function Home() {
   return (
-    <div className="container">
-      <h1 style={{ textAlign: "center" }}>
-        Home Services, Aerial Imaging & Independent Project Review
-      </h1>
+    <div className="page">
+      <section className="hero center">
+        <h1>Home Services, Aerial Imaging & Independent Project Review</h1>
 
-      <p style={{ textAlign: "center" }}>
-        Practical, experience-driven services for homeowners, builders,
-        and organizations that need work done correctly, safely,
-        and without unnecessary friction.
-      </p>
+        <p>
+          Practical, experience-driven services for homeowners, builders, and
+          organizations that need work done correctly, safely, and without
+          unnecessary friction.
+        </p>
 
-      <p style={{ textAlign: "center" }}>
-        <a className="cta" href="sms:+19188846615">
-          Text details or photos for a fast response
-        </a>
-      </p>
+        <div className="cta-row">
+          <a className="cta" href="sms:+19188846615">
+            Text Jon directly for a fast response
+          </a>
+          <a className="cta secondary" href="/contact">
+            Prefer not to text? Use the form
+          </a>
+        </div>
 
-      <p style={{ textAlign: "center", fontSize: "0.9rem" }}>
-        You’ll be talking to me directly — not an AI chatbot or call center.
-      </p>
+        <p className="small" style={{ marginTop: "0.85rem" }}>
+          You’ll be communicating with me, the owner and operator, not an AI
+          chatbot or call center. Calls are welcome if needed, but texting 
+          often ensures a quicker response.
+        </p>
+
+        <div className="badge-row" aria-label="Credibility highlights">
+          <span className="badge">Based in Tulsa</span>
+          <span className="badge">Serving Green Country and beyond</span>
+          <span className="badge">Commercially licensed & insured</span>
+        </div>
+      </section>
 
       <h2>How I can help</h2>
+           <div className="cards">
+        <div className="card">
+          <h3>Home Services, Repairs & Remodels</h3>
+          <p>
+            Quick-response fixes, ongoing maintenance, and complex residential
+            problems that require careful diagnosis and execution.
+          </p>
+          <a href="/home-services">Learn more →</a>
+        </div>
 
-      <p>
-        <strong>Home Services, Repairs & Remodels</strong>
-        <br />
-        Quick-response fixes, ongoing maintenance, and complex residential
-        problems that require careful diagnosis and execution.
-      </p>
+        <div className="card">
+          <h3>Aerial Services</h3>
+          <p>
+            Professional drone operations for real estate, construction,
+            industrial documentation, and data capture - with speed, reliability,
+            and compliance.
+          </p>
+          <a href="/aerial-services">Learn more →</a>
+        </div>
 
-      <p>
-        <strong>Aerial Services</strong>
-        <br />
-        Professional drone operations for real estate, construction,
-        industrial documentation, and data capture — focused on speed,
-        reliability, and compliance.
-      </p>
+        <div className="card">
+          <h3>Project Review & Consulting</h3>
+          <p>
+            Independent second opinions on scopes, plans, documentation, and
+            work already in motion - including turning messy inputs into clear
+            outputs.
+          </p>
+          <a href="/consulting">Learn more →</a>
+        </div>
+      </div>
 
-      <p>
-        <strong>Project Review & Consulting</strong>
-        <br />
-        Independent second opinions on scopes, plans, documentation,
-        and work already in motion.
-      </p>
+      <div className="callout">
+        <p style={{ margin: 0 }}>
+          <strong>Fastest way to start:</strong> text a couple photos and a short
+          description to{" "}
+          <a className="link" href="sms:+19188846615">
+            (918) 884-6615
+          </a>
+            , to talk to Jon directly.
+        </p>
+      </div>
     </div>
   );
 }
