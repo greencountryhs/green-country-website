@@ -77,3 +77,8 @@ export default function Home() {
     </div>
   );
 }
+export const metadata = {
+  title: "Green Country Home Services & Consulting | Tulsa",
+  description:
+    "Home services, aerial imaging, and independent project review based in Tulsa, serving Green Country and beyond. Text for a fast response."
+};

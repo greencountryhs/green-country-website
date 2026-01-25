@@ -95,3 +95,8 @@ export default function Consulting() {
     </div>
   );
 }
+export const metadata = {
+  title: "Project Review & Independent Consulting | Tulsa",
+  description:
+    "Second-opinion project review, documentation QA, and clarity from messy inputs to decision-ready outputs."
+};

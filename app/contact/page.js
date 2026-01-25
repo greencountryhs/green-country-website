@@ -2,10 +2,32 @@ export default function Contact() {
   return (
     <div className="page">
       <h1>Get in touch</h1>
+import { useSearchParams } from "next/navigation";
+
+export default function Contact() {
+  const params = useSearchParams();
+  const sent = params.get("sent") === "1";
+
+  return (
+    <div className="page">
+      <h1>Get in touch</h1>
+
+      {sent && (
+        <div className="callout" style={{ marginBottom: "1rem" }}>
+          <p style={{ margin: 0 }}>
+            <strong>Message sent.</strong> Thanks — I’ve received your note.
+            If timing matters, texting photos/details to{" "}
+            <a className="link" href="sms:+19188846615">
+              (918) 884-6615
+            </a>{" "}
+            usually gets the fastest response.
+          </p>
+        </div>
+      )}
 
       <p>
         Fastest path is texting a couple details (and photos if relevant). You’ll
-        be talking with me directly, not a bot or call center.
+        be talking with me directly, not a bot or call center. Serving Tulsa, Broken Arrow, Jenks, Bixby, Owasso, Green Country, and beyond.
       </p>
 
       <div className="cta-row" style={{ justifyContent: "flex-start" }}>
@@ -101,4 +123,9 @@ export default function Contact() {
       </div>
     </div>
   );
-}
+}export const metadata = {
+  title: "Contact | Green Country Home Services & Consulting",
+  description:
+    "Text or message to get started. Based in Tulsa, serving Green Country."
+};
+

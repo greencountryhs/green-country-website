@@ -4,9 +4,8 @@ export default function AerialServices() {
       <h1>Aerial Imaging & Drone Services</h1>
 
       <p>
-        Professional aerial imaging and data capture delivered quickly and
-        responsibly, without cutting corners on safety, legality, or usable
-        results.
+        Professional aerial imaging and data capture for real estate, construction,
+  and industrial projects - delivered quickly, legally, and with quality results.
       </p>
 
       <div className="cta-row" style={{ justifyContent: "flex-start" }}>
@@ -22,6 +21,14 @@ export default function AerialServices() {
         Text is preferred because you can include a location, nearest
         intersection, photos, and timing. Calls are welcome if needed.
       </p>
+<div className="callout">
+  <ul style={{ margin: 0 }}>
+    <li>Licensed, insured, and experienced in controlled airspace</li>
+    <li>Zero mishaps; I decline unsafe or non-viable jobs</li>
+    <li>Next-day delivery standard for most photo/video work</li>
+    <li>Clear scoping so deliverables match the need</li>
+  </ul>
+</div>
 
       <h2>Services</h2>
 
@@ -69,6 +76,13 @@ export default function AerialServices() {
           based on complexity and expected quality
         </li>
       </ul>
+<h2>Typical deliverables</h2>
+<ul>
+  <li>High-resolution photos (web & MLS-ready)</li>
+  <li>Edited video clips or short promos</li>
+  <li>Progress documentation sets</li>
+  <li>Measurements, models, and reports when scoped</li>
+</ul>
 
       <h2>Recent Projects</h2>
       
@@ -126,3 +140,8 @@ export default function AerialServices() {
     </div>
   );
 }
+export const metadata = {
+  title: "Aerial Imaging & Drone Services | Tulsa & Green Country",
+  description:
+    "Professional drone services for real estate, construction, industrial documentation, and analysis. Licensed, insured, fast turnaround."
+};

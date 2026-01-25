@@ -94,3 +94,8 @@ export default function HomeServices() {
     </div>
   );
 }
+export const metadata = {
+  title: "Home Services, Repairs & Remodels | Tulsa",
+  description:
+    "Quick-turn repairs, power washing, gutters, eco-friendly mosquito control, and problem-solving remodel work across Green Country."
+};
