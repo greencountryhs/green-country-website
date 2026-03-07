@@ -1,21 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 
-interface Employee {
+type Employee = {
     id: string;
     display_name: string;
     pay_rate_cents: number;
     active: boolean;
-}
+};
 
 export default function EmployeesPage() {
+    const supabase = createClient();
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
-    const [newPay, setNewPay] = useState('');
+    const [newPayRate, setNewPayRate] = useState('');
 
     useEffect(() => {
         fetchEmployees();
@@ -26,28 +27,34 @@ export default function EmployeesPage() {
         const { data, error } = await supabase
             .from('employees')
             .select('*')
-            .order('display_name', { ascending: true });
+            .order('display_name');
 
-        if (data) setEmployees(data);
+        if (error) {
+            console.error('Error fetching employees:', error);
+        } else {
+            setEmployees(data || []);
+        }
         setLoading(false);
     }
 
     async function addEmployee(e: React.FormEvent) {
         e.preventDefault();
-        if (!newName || !newPay) return;
+        const payRateCents = Math.round(parseFloat(newPayRate) * 100);
 
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('employees')
-            .insert([{
-                display_name: newName,
-                pay_rate_cents: Math.round(parseFloat(newPay) * 100),
-                active: true
-            }]);
+            .insert([
+                { display_name: newName, pay_rate_cents: isNaN(payRateCents) ? 0 : payRateCents }
+            ])
+            .select();
 
-        if (!error) {
+        if (error) {
+            console.error('Error adding employee:', error);
+            alert('Failed to add employee');
+        } else if (data) {
+            setEmployees([...employees, data[0]].sort((a, b) => a.display_name.localeCompare(b.display_name)));
             setNewName('');
-            setNewPay('');
-            fetchEmployees();
+            setNewPayRate('');
         }
     }
 
@@ -57,82 +64,86 @@ export default function EmployeesPage() {
             .update({ active: !currentStatus })
             .eq('id', id);
 
-        if (!error) fetchEmployees();
+        if (error) {
+            console.error('Error updating status:', error);
+            alert('Failed to update status');
+        } else {
+            setEmployees(employees.map(emp =>
+                emp.id === id ? { ...emp, active: !currentStatus } : emp
+            ));
+        }
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6 md:p-12">
-            <div className="max-w-2xl mx-auto">
-                <header className="flex items-center justify-between mb-8">
-                    <div>
-                        <Link href="/dashboard" className="text-sm text-gray-500 hover:text-black mb-2 block">
-                            ← Dashboard
-                        </Link>
-                        <h1 className="text-3xl font-bold text-gray-900">Employees</h1>
-                    </div>
-                </header>
+        <div className="page">
+            <Link href="/dashboard" className="link small" style={{ marginBottom: '1rem', display: 'inline-block' }}>
+                &larr; Back to Dashboard
+            </Link>
 
-                {/* Add Employee Form */}
-                <form onSubmit={addEmployee} className="bg-white p-6 rounded-2xl shadow-sm mb-12 border border-gray-100">
-                    <h2 className="text-lg font-bold mb-4">Add New Employee</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <h1>Employee Management</h1>
+
+            <div className="callout" style={{ marginBottom: '2rem' }}>
+                <h3>Add New Employee</h3>
+                <form onSubmit={addEmployee} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Name</label>
                         <input
                             type="text"
-                            placeholder="Full Name"
-                            className="p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black outline-none"
+                            required
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
-                            required
+                            style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '1rem' }}
+                            placeholder="e.g. John Doe"
                         />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Hourly Rate ($)</label>
                         <input
                             type="number"
                             step="0.01"
-                            placeholder="Pay Rate (e.g. 25.00)"
-                            className="p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black outline-none"
-                            value={newPay}
-                            onChange={(e) => setNewPay(e.target.value)}
+                            min="0"
                             required
+                            value={newPayRate}
+                            onChange={(e) => setNewPayRate(e.target.value)}
+                            style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '1rem' }}
+                            placeholder="e.g. 25.00"
                         />
                     </div>
-                    <button
-                        type="submit"
-                        className="w-full bg-black text-white p-4 rounded-xl font-bold hover:bg-gray-800 transition-colors"
-                    >
+                    <button type="submit" className="cta" style={{ marginTop: '0.5rem' }}>
                         Add Employee
                     </button>
                 </form>
-
-                {/* Employee List */}
-                <div className="space-y-4">
-                    <h2 className="text-lg font-bold mb-4">Current Staff</h2>
-                    {loading ? (
-                        <p className="text-gray-500">Loading employees...</p>
-                    ) : employees.length === 0 ? (
-                        <p className="text-gray-500 italic">No employees found.</p>
-                    ) : (
-                        employees.map((emp) => (
-                            <div
-                                key={emp.id}
-                                className={`flex items-center justify-between p-6 bg-white rounded-2xl border ${emp.active ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}
-                            >
-                                <div>
-                                    <h3 className="font-bold text-lg">{emp.display_name}</h3>
-                                    <p className="text-sm text-gray-500">${(emp.pay_rate_cents / 100).toFixed(2)} / hr</p>
-                                </div>
-                                <button
-                                    onClick={() => toggleActive(emp.id, emp.active)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${emp.active
-                                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                            : 'bg-green-50 text-green-600 hover:bg-green-100'
-                                        }`}
-                                >
-                                    {emp.active ? 'Deactivate' : 'Activate'}
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
             </div>
+
+            <h2>Current Employees</h2>
+            {loading ? (
+                <p>Loading employees...</p>
+            ) : employees.length === 0 ? (
+                <p>No employees found.</p>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {employees.map(emp => (
+                        <div key={emp.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: emp.active ? 1 : 0.6 }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{emp.display_name}</h3>
+                                <p style={{ margin: '0.25rem 0 0 0', color: 'var(--muted)' }}>
+                                    ${(emp.pay_rate_cents / 100).toFixed(2)} / hr
+                                </p>
+                                <span className="badge" style={{ marginTop: '0.5rem', display: 'inline-block', background: emp.active ? '#dcfce7' : '#f3f4f6', color: emp.active ? '#166534' : '#374151', border: 'none' }}>
+                                    {emp.active ? 'Active' : 'Inactive'}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => toggleActive(emp.id, emp.active)}
+                                className={`cta ${emp.active ? 'secondary' : ''}`}
+                                style={{ padding: '0.5rem 1rem' }}
+                            >
+                                {emp.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

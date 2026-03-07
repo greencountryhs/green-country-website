@@ -1,26 +1,35 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 
-interface Employee {
+type Employee = {
     id: string;
     display_name: string;
+    pay_rate_cents: number;
     active: boolean;
-}
+    user_id: string | null;
+};
 
-interface TimeEntry {
+type TimeEntry = {
     id: string;
     employee_id: string;
     clock_in: string;
     clock_out: string | null;
-}
+};
+
+type CombinedData = Employee & {
+    current_entry_id: string | null;
+    clock_in_time: string | null;
+};
 
 export default function TimeTrackingPage() {
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [activeEntries, setActiveEntries] = useState<Record<string, TimeEntry>>({});
+    const supabase = createClient();
+    const [employees, setEmployees] = useState<CombinedData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [role, setRole] = useState<string | null>(null);
+    const [actionMessage, setActionMessage] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -28,113 +37,258 @@ export default function TimeTrackingPage() {
 
     async function fetchData() {
         setLoading(true);
+        setActionMessage(null);
 
-        // Fetch active employees
-        const { data: empData } = await supabase
-            .from('employees')
-            .select('*')
-            .eq('active', true)
-            .order('display_name', { ascending: true });
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            console.error('Error fetching user:', authError);
+            setLoading(false);
+            return;
+        }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        const userRole = profile?.role || 'employee';
+        setRole(userRole);
+
+        // Fetch employees
+        let empQuery = supabase.from('employees').select('*').eq('active', true).order('display_name');
+        if (userRole === 'employee') {
+            empQuery = empQuery.eq('user_id', user.id);
+        }
+
+        const { data: empData, error: empError } = await empQuery;
+
+        if (empError) {
+            console.error('Error fetching employees:', empError);
+            setLoading(false);
+            return;
+        }
 
         // Fetch open time entries
-        const { data: timeData } = await supabase
+        const { data: timeData, error: timeError } = await supabase
             .from('time_entries')
             .select('*')
             .is('clock_out', null);
 
-        if (empData) setEmployees(empData);
-
-        if (timeData) {
-            const entryMap: Record<string, TimeEntry> = {};
-            timeData.forEach(entry => {
-                entryMap[entry.employee_id] = entry;
-            });
-            setActiveEntries(entryMap);
+        if (timeError) {
+            console.error('Error fetching time entries:', timeError);
+            setLoading(false);
+            return;
         }
 
+        // Combine data
+        const combined: CombinedData[] = (empData || []).map((emp: any) => {
+            const entry = (timeData || []).find(t => t.employee_id === emp.id);
+            return {
+                ...emp,
+                current_entry_id: entry ? entry.id : null,
+                clock_in_time: entry ? entry.clock_in : null
+            };
+        });
+
+        setEmployees(combined);
         setLoading(false);
     }
 
-    async function clockIn(employeeId: string) {
-        if (activeEntries[employeeId]) return;
+    async function handleStartDay() {
+        setActionMessage(null);
+        const inactiveEmps = employees.filter(emp => emp.current_entry_id === null);
+        const activeCount = employees.length - inactiveEmps.length;
+
+        if (inactiveEmps.length === 0) {
+            setActionMessage(`Clocked in 0 employees, skipped ${activeCount} already active`);
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const inserts = inactiveEmps.map(emp => ({ employee_id: emp.id, clock_in: now }));
 
         const { error } = await supabase
             .from('time_entries')
-            .insert([{
-                employee_id: employeeId,
-                clock_in: new Date().toISOString()
-            }]);
+            .insert(inserts);
 
-        if (!error) fetchData();
+        if (error) {
+            console.error('Error in Start Day:', error);
+            alert('Failed to start day');
+        } else {
+            setActionMessage(`Clocked in ${inactiveEmps.length} employees, skipped ${activeCount} already active`);
+            fetchData();
+        }
     }
 
-    async function clockOut(employeeId: string) {
-        const entry = activeEntries[employeeId];
-        if (!entry) return;
+    async function handleEndDay() {
+        setActionMessage(null);
+        const activeEmps = employees.filter(emp => emp.current_entry_id !== null);
+        const inactiveCount = employees.length - activeEmps.length;
+
+        if (activeEmps.length === 0) {
+            setActionMessage(`Clocked out 0 employees, skipped ${inactiveCount} not active`);
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const entryIds = activeEmps.map(e => e.current_entry_id!);
 
         const { error } = await supabase
             .from('time_entries')
-            .update({ clock_out: new Date().toISOString() })
-            .eq('id', entry.id);
+            .update({ clock_out: now })
+            .in('id', entryIds);
 
-        if (!error) fetchData();
+        if (error) {
+            console.error('Error in End Day:', error);
+            alert('Failed to end day');
+        } else {
+            setActionMessage(`Clocked out ${activeEmps.length} employees, skipped ${inactiveCount} not active`);
+            fetchData();
+        }
+    }
+
+    async function handleClockIn(employeeId: string) {
+        setActionMessage(null);
+
+        // Prevent duplicate clock-ins
+        const employee = employees.find(emp => emp.id === employeeId);
+        if (employee && employee.current_entry_id !== null) {
+            console.warn('Employee is already clocked in:', employeeId);
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('time_entries')
+            .insert([{ employee_id: employeeId, clock_in: now }])
+            .select();
+
+        if (error) {
+            console.error('Error clocking in:', error);
+            alert('Failed to clock in');
+        } else if (data && data.length > 0) {
+            setEmployees(employees.map(emp =>
+                emp.id === employeeId
+                    ? { ...emp, current_entry_id: data[0].id, clock_in_time: data[0].clock_in }
+                    : emp
+            ));
+        }
+    }
+
+    async function handleClockOut(employeeId: string, entryId: string) {
+        setActionMessage(null);
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from('time_entries')
+            .update({ clock_out: now })
+            .eq('id', entryId);
+
+        if (error) {
+            console.error('Error clocking out:', error);
+            alert('Failed to clock out');
+        } else {
+            setEmployees(employees.map(emp =>
+                emp.id === employeeId
+                    ? { ...emp, current_entry_id: null, clock_in_time: null }
+                    : emp
+            ));
+        }
+    }
+
+    function formatTime(isoString: string) {
+        return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6 md:p-12">
-            <div className="max-w-2xl mx-auto">
-                <header className="mb-8">
-                    <Link href="/dashboard" className="text-sm text-gray-500 hover:text-black mb-2 block">
-                        ← Dashboard
-                    </Link>
-                    <h1 className="text-3xl font-bold text-gray-900">Time Tracking</h1>
-                </header>
+        <div className="page">
+            <Link href="/dashboard" className="link small" style={{ marginBottom: '1rem', display: 'inline-block' }}>
+                &larr; Back to Dashboard
+            </Link>
 
-                <div className="space-y-4">
-                    {loading ? (
-                        <p className="text-gray-500">Loading staff...</p>
-                    ) : employees.length === 0 ? (
-                        <p className="text-gray-500 italic">No active employees found. Add some in the Employees tab.</p>
-                    ) : (
-                        employees.map((emp) => {
-                            const isOpen = !!activeEntries[emp.id];
-                            return (
-                                <div key={emp.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div>
-                                            <h3 className="font-bold text-xl mb-1">{emp.display_name}</h3>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-3 h-3 rounded-full ${isOpen ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-                                                <span className="text-sm font-medium text-gray-600">
-                                                    {isOpen ? 'Working' : 'Not clocked in'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-3">
-                                            {!isOpen ? (
-                                                <button
-                                                    onClick={() => clockIn(emp.id)}
-                                                    className="flex-1 md:flex-none px-8 py-4 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all active:scale-95"
-                                                >
-                                                    Clock In
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => clockOut(emp.id)}
-                                                    className="flex-1 md:flex-none px-8 py-4 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
-                                                >
-                                                    Clock Out
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                <h1 style={{ margin: 0 }}>Time Tracking</h1>
+                {role && (
+                    <span style={{ fontSize: '0.9rem', color: 'var(--muted)', background: '#f3f4f6', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                        Detected role: {role}
+                    </span>
+                )}
             </div>
+
+            <p className="section-lead" style={{ marginBottom: '2rem' }}>
+                Select an active employee to clock in or out.
+            </p>
+
+            {role === 'admin' && (
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+                    <button onClick={handleStartDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}>
+                        Start Day
+                    </button>
+                    <button onClick={handleEndDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}>
+                        End Day
+                    </button>
+                </div>
+            )}
+
+            {actionMessage && (
+                <div className="callout" style={{ marginBottom: '2rem', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
+                    {actionMessage}
+                </div>
+            )}
+
+            {loading ? (
+                <p>Loading...</p>
+            ) : employees.length === 0 ? (
+                <p>{role === 'admin' ? 'No active employees found. Please add or activate employees in the Employee Management section.' : 'No active employee linked to your account. Please contact an admin.'}</p>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {employees.map(emp => {
+                        const isWorking = emp.current_entry_id !== null;
+                        return (
+                            <div key={emp.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.4rem' }}>{emp.display_name}</h3>
+                                    <span className="badge" style={{
+                                        background: isWorking ? '#dcfce7' : '#f3f4f6',
+                                        color: isWorking ? '#166534' : '#374151',
+                                        border: 'none',
+                                        fontSize: '1rem',
+                                        padding: '0.4rem 0.8rem'
+                                    }}>
+                                        {isWorking ? 'Clocked In' : 'Not Working'}
+                                    </span>
+                                </div>
+
+                                {isWorking && emp.clock_in_time && (
+                                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.9rem' }}>
+                                        Clocked in at {formatTime(emp.clock_in_time)}
+                                    </p>
+                                )}
+
+                                <div style={{ marginTop: '0.5rem' }}>
+                                    {isWorking ? (
+                                        <button
+                                            onClick={() => handleClockOut(emp.id, emp.current_entry_id!)}
+                                            className="cta"
+                                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
+                                        >
+                                            Clock Out
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleClockIn(emp.id)}
+                                            className="cta"
+                                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}
+                                        >
+                                            Clock In
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
