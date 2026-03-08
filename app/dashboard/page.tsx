@@ -42,9 +42,14 @@ export default async function DashboardHome() {
 
             <div className="cards" style={{ maxWidth: '400px', margin: '2rem auto', display: 'flex', flexDirection: 'column' }}>
                 {isAdmin && (
-                    <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                        Employee Management
-                    </Link>
+                    <>
+                        <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
+                            Employee Management
+                        </Link>
+                        <Link href="/dashboard/payroll" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', marginTop: '1rem' }}>
+                            Payroll
+                        </Link>
+                    </>
                 )}
                 <Link href="/dashboard/time" className="cta secondary" style={{ padding: '1.5rem', fontSize: '1.2rem', marginTop: '1rem' }}>
                     Time Tracking
