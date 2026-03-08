@@ -80,10 +80,10 @@ export default function EmployeesPage() {
                 &larr; Back to Dashboard
             </Link>
 
-            <h1>Employee Management</h1>
+            <h1>Crew Management</h1>
 
             <div className="callout" style={{ marginBottom: '2rem' }}>
-                <h3>Add New Employee</h3>
+                <h3>Add New Crew Member</h3>
                 <form onSubmit={addEmployee} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Name</label>
@@ -110,16 +110,16 @@ export default function EmployeesPage() {
                         />
                     </div>
                     <button type="submit" className="cta" style={{ marginTop: '0.5rem' }}>
-                        Add Employee
+                        Add Crew Member
                     </button>
                 </form>
             </div>
 
-            <h2>Current Employees</h2>
+            <h2>Current Crew</h2>
             {loading ? (
-                <p>Loading employees...</p>
+                <p>Loading crew...</p>
             ) : employees.length === 0 ? (
-                <p>No employees found.</p>
+                <p>No crew members found.</p>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {employees.map(emp => (

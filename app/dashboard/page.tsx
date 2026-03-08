@@ -44,7 +44,7 @@ export default async function DashboardHome() {
                 {isAdmin && (
                     <>
                         <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Employee Management
+                            Crew Management
                         </Link>
                         <Link href="/dashboard/payroll" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', marginTop: '1rem' }}>
                             Payroll
