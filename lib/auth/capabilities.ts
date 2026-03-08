@@ -12,6 +12,7 @@ export const CAPABILITIES = {
     MANAGE_ESTIMATES: 'manage_estimates',
     VIEW_ALL_PROJECTS: 'view_all_projects',
     VIEW_OWN_HOURS: 'view_own_hours',
+    VIEW_TIME_REPORTS: 'view_time_reports',
 } as const;
 
 export type CapabilityName = typeof CAPABILITIES[keyof typeof CAPABILITIES];

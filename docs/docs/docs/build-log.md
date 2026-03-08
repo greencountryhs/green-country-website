@@ -43,8 +43,22 @@ Implemented:
 - crew dashboard shell
 - notes/inbox foundation
 
+---
+
+## Tasks Engine and Operational Reports Included
+
+Completed implementation of Slice 5 and Slice 6 according to the AI Dev Guidelines.
+
+Implemented:
+- `006_time_entry_edits.sql` for auditable time tracking edits (`edited_at`, `edited_by`, `edit_reason`, `manual_entry`).
+- Crew Today's Tasks Page & task completion log endpoints.
+- Admin overview for Tasks (`/dashboard/tasks/admin`).
+- Reports V1 Dashboard (`/dashboard/reports`) separated from Payroll.
+- Post clock-in redirect to `dashboard/tasks`.
+- UI terminology scrubbed to ensure `Crew` is used over `Employee`.
+
 Next target:
-- task engine UI and checklist execution flow
+- Payroll UI Expansion (Phase 7) or Project Financial Tracking (Phase 8).
 
 Future work:
 

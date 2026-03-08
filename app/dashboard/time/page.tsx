@@ -173,6 +173,11 @@ export default function TimeTrackingPage() {
                     ? { ...emp, current_entry_id: data[0].id, clock_in_time: data[0].clock_in }
                     : emp
             ));
+
+            // Redirect straight to tasks
+            if (role !== 'admin') {
+                window.location.href = '/dashboard/tasks';
+            }
         }
     }
 
@@ -216,7 +221,7 @@ export default function TimeTrackingPage() {
             </div>
 
             <p className="section-lead" style={{ marginBottom: '2rem' }}>
-                Select an active employee to clock in or out.
+                Select an active crew member to clock in or out.
             </p>
 
             {role === 'admin' && (
@@ -239,7 +244,7 @@ export default function TimeTrackingPage() {
             {loading ? (
                 <p>Loading...</p>
             ) : employees.length === 0 ? (
-                <p>{role === 'admin' ? 'No active employees found. Please add or activate employees in the Employee Management section.' : 'No active employee linked to your account. Please contact an admin.'}</p>
+                <p>{role === 'admin' ? 'No active crew members found. Please add or activate them in the Crew Management section.' : 'No active crew profile linked to your account. Please contact an admin.'}</p>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {employees.map(emp => {

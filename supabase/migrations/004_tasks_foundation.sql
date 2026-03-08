@@ -45,9 +45,18 @@ CREATE TABLE IF NOT EXISTS public.task_assignment_targets (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS public.task_item_logs (
+CREATE TABLE IF NOT EXISTS public.task_assignment_instances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     assignment_id UUID REFERENCES public.task_assignments(id) ON DELETE CASCADE,
+    scheduled_date DATE NOT NULL,
+    status TEXT DEFAULT 'pending', -- 'pending', 'completed'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.task_item_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    instance_id UUID REFERENCES public.task_assignment_instances(id) ON DELETE CASCADE,
     template_item_id UUID REFERENCES public.task_template_items(id) ON DELETE CASCADE,
     employee_id UUID REFERENCES public.employees(id) ON DELETE CASCADE,
     status TEXT DEFAULT 'completed',
@@ -59,6 +68,7 @@ ALTER TABLE public.task_template_sections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_template_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_assignment_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_assignment_instances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_item_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policies for Templates & Blueprints (Managers/Admins write, Crew reads when bound to assignment)
@@ -81,13 +91,28 @@ CREATE POLICY "Admins can manage assignments" ON public.task_assignments FOR ALL
 CREATE POLICY "Crew can view target maps" ON public.task_assignment_targets FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid()));
 CREATE POLICY "Admins can manage target maps" ON public.task_assignment_targets FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
+-- Policies for Instances
+CREATE POLICY "Crew can view their assigned task instances" ON public.task_assignment_instances FOR SELECT 
+USING (
+    assignment_id IN (SELECT assignment_id FROM public.task_assignment_targets WHERE employee_id IN (SELECT id FROM public.employees WHERE user_id = auth.uid()))
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+CREATE POLICY "Admins can manage task instances" ON public.task_assignment_instances FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
 -- Policies for Logs
 CREATE POLICY "Crew can log their own task items" ON public.task_item_logs FOR INSERT 
 WITH CHECK (employee_id IN (SELECT id FROM public.employees WHERE user_id = auth.uid()));
 
 CREATE POLICY "Crew can view their assigned task logs" ON public.task_item_logs FOR SELECT 
 USING (
-    assignment_id IN (SELECT assignment_id FROM public.task_assignment_targets WHERE employee_id IN (SELECT id FROM public.employees WHERE user_id = auth.uid()))
+    instance_id IN (
+        SELECT id FROM public.task_assignment_instances WHERE assignment_id IN (
+            SELECT assignment_id FROM public.task_assignment_targets WHERE employee_id IN (
+                SELECT id FROM public.employees WHERE user_id = auth.uid()
+            )
+        )
+    )
     OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 

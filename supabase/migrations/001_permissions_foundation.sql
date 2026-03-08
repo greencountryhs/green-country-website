@@ -55,7 +55,8 @@ VALUES
     ('view_job_costs', 'View Job Costs', 'Can view financial job costs'),
     ('manage_estimates', 'Manage Estimates', 'Can manage project estimates'),
     ('view_all_projects', 'View All Projects', 'Can view all projects regardless of assignment'),
-    ('view_own_hours', 'View Own Hours', 'Can view own recorded hours')
+    ('view_own_hours', 'View Own Hours', 'Can view own recorded hours'),
+    ('view_time_reports', 'View Time Reports', 'Can view operational time and crew reports')
 ON CONFLICT (id) DO NOTHING;
 
 -- 4. Seed initial role_capabilities
@@ -73,7 +74,8 @@ VALUES
     ('manager', 'assign_tasks'),
     ('manager', 'view_project_notes'),
     ('manager', 'post_manager_notes'),
-    ('manager', 'view_all_projects')
+    ('manager', 'view_all_projects'),
+    ('manager', 'view_time_reports')
 ON CONFLICT DO NOTHING;
 
 -- Crew Lead

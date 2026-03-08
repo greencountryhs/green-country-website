@@ -20,9 +20,10 @@ export type TaskDisplayMode = 'full' | 'section' | 'single';
 export async function getTodaysTasks(employeeId: string) {
     const supabase = await createClient()
 
-    // In a real implementation this matches the exact local date with timezone logic
+    // Using exact local date format YYYY-MM-DD
     const todayStr = new Date().toISOString().split('T')[0]
 
+    // Query targets -> assignments -> instances
     const { data, error } = await supabase
         .from('task_assignment_targets')
         .select(`
@@ -30,32 +31,50 @@ export async function getTodaysTasks(employeeId: string) {
             task_assignments (
                 id,
                 name,
-                scheduled_for,
-                display_mode
+                display_mode,
+                task_assignment_instances!inner (
+                    id,
+                    scheduled_date,
+                    status
+                )
             )
         `)
         .eq('employee_id', employeeId)
+        // !inner join ensures we only get rows that actually have an instance for today
+        .eq('task_assignments.task_assignment_instances.scheduled_date', todayStr)
 
     if (error) console.error("Error fetching today's tasks:", error)
 
-    // Server-side filtering for shell purposes until real scheduling lands
-    const todaysAssignments = data?.filter((row: any) => {
-        const assignment = Array.isArray(row.task_assignments) ? row.task_assignments[0] : row.task_assignments;
-        return assignment?.scheduled_for === todayStr || true; // Showing all for shell visualization right now
+    const todaysInstances: any[] = []
+    data?.forEach((target: any) => {
+        const assignment = Array.isArray(target.task_assignments) ? target.task_assignments[0] : target.task_assignments
+        if (assignment) {
+            const instances = Array.isArray(assignment.task_assignment_instances) ? assignment.task_assignment_instances : [assignment.task_assignment_instances]
+            const todayInstance = instances[0]
+            if (todayInstance) {
+                todaysInstances.push({
+                    instance_id: todayInstance.id,
+                    assignment_id: assignment.id,
+                    assignment_name: assignment.name,
+                    display_mode: assignment.display_mode,
+                    status: todayInstance.status
+                })
+            }
+        }
     })
 
-    return todaysAssignments || []
+    return todaysInstances
 }
 
 /**
- * Progress logging mechanism (creates timestamped immutable log)
+ * Progress logging mechanism (creates timestamped immutable log attached to the instance)
  */
-export async function logTaskItem(assignmentId: string, templateItemId: string, employeeId: string) {
+export async function logTaskItem(instanceId: string, templateItemId: string, employeeId: string) {
     const supabase = await createClient()
     const { error } = await supabase
         .from('task_item_logs')
         .insert([{
-            assignment_id: assignmentId,
+            instance_id: instanceId,
             template_item_id: templateItemId,
             employee_id: employeeId,
             status: 'completed',
@@ -70,7 +89,10 @@ export async function logTaskItem(assignmentId: string, templateItemId: string, 
 /**
  * Example scheduling action utilizing strict terminology
  */
-export async function rescheduleTask(assignmentId: string, direction: ScheduleDirection, days: number = 1) {
-    console.log(`Rescheduling task ${assignmentId} using: [${direction}] for ${days} days`)
-    // Database logic to modify task_assignments.scheduled_for would go here
+export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
+    console.log(`Rescheduling task instance ${instanceId} using: [${direction}] for ${days} days`)
+    // Database logic to modify task_assignment_instances.scheduled_date would go here
+    // e.g.
+    // 'Push Back 1 Day' -> date = date + 1
+    // 'Pull Forward 1 Day' -> date = date - 1
 }
