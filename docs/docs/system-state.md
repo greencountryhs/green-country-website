@@ -1,187 +1,54 @@
-Current System State (Milestone)
+# Contractor Management System State
 
-The app now contains a complete operational backbone:
+Architecture milestone reached.
 
-Crew Workflow
-Login
-→ Clock In
-→ Redirect to /dashboard/tasks
-→ Complete checklist tasks
-→ Clock Out
-Management Visibility
-/dashboard/tasks/admin
-→ see assignments
-→ monitor progress
+Core system implemented:
 
-/dashboard/reports
-→ weekly hours
-→ missing clock-outs
-→ recent entries
-→ inline corrections
-Communication
-manager_notes → crew inbox
-employee_notes → field notes
-project_notes → job-level notes
-Data Architecture
+Auth & Permissions
+- Supabase auth
+- capability-based permissions
+- roles, capabilities, employee_roles
 
-Permissions
+Crew Operations
+- employees table retained
+- time_entries with audit fields
+- crew terminology used in UI
 
-roles
-capabilities
-role_capabilities
-employee_roles
-
-Operations
-
-employees
-time_entries
-task_templates
-task_assignments
-task_item_logs
+Task System
+- task_templates
+- task_assignments
+- task_assignment_targets
+- task_item_logs
+- crew checklist UI
 
 Communication
+- employee_notes
+- manager_notes
+- manager_note_reads
+- project_notes
 
-employee_notes
-manager_notes
-manager_note_reads
-project_notes
+Reports V1
+- /dashboard/reports
+- weekly hours
+- missing clock-outs
+- recent entries
+- inline correction actions
 
-Financial foundation
+Reporting View
+- public.time_entry_report_view
 
-payment_methods
-employee_payments
-employee_comp_adjustments
-holding_account_ledger
+Projects
+- clients
+- projects tables exist (UI not built yet)
 
-Reporting
+Payroll foundation
+- payment_methods
+- employee_payments
+- employee_comp_adjustments
+- holding_account_ledger
 
-time_entry_report_view
-What Is Complete
+Next Development Target
+Task scheduling system.
 
-The following slices are implemented and verified:
-
-Slice	Status
-Auth + Permissions	Complete
-Crew Dashboard Shell	Complete
-Notes System	Complete
-Task Engine	Complete
-Task UI	Complete
-Reports V1	Complete
-
-This is a fully operational crew management system.
-
-What Was Intentionally Deferred
-
-These modules were left as foundations only:
-
-Projects / Client pipeline
-
-Tables exist but UI not built.
-
-Payroll UI
-
-Backend tables exist but no screens yet.
-
-Task scheduling tools
-
-Tasks can run, but scheduling interface is minimal.
-
-Job costing
-
-Receipts / materials tracking not implemented yet.
-
-Recommended Next Development Phase
-
-Start a new thread focused on Operations Planning Tools.
-
-The highest value next slice is:
-
-Task Scheduling System
-
-Right now you can run tasks, but scheduling them is still manual.
-
-Build:
-
-/dashboard/tasks/templates
-/dashboard/tasks/schedule
-/dashboard/tasks/calendar
-
-Capabilities:
-
-create reusable task templates
-
-assign tasks to days
-
-push back / pull forward schedules
-
-assign by crew role
-
-calendar-style overview
-
-This unlocks your “plan the week ahead” workflow.
-
-Secondary Next Phase
-
-After scheduling tools:
-
-Job Cost Tracking
-
-Add:
-
-material_receipts
-subcontract_costs
-project_financials
-
-This enables:
-
-job revenue
-– materials
-– subcontractors
-– labor hours
-= margin
-
-Which aligns with what you described earlier.
-
-Third Phase
-Payroll UI
-
-Once job costs exist:
-
-Build:
-
-/dashboard/payroll
-
-Features:
-
-pay advances
-
-split payments
-
-holding account balances
-
-pay period summaries
-
-Future Advanced Phase
-
-Your earlier idea:
-
-AI Task Assistant
-
-A bot that can:
-
-generate task lists
-
-schedule tasks
-
-suggest workflow steps
-
-interpret project notes
-
-This would interface with:
-
-task_templates
-task_assignments
-projects
-manager_notes
-
-But this should come after scheduling tools.
+Goal:
+Allow managers to plan work ahead using templates, assignments, and calendar views.
