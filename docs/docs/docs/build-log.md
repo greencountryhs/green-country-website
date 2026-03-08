@@ -32,6 +32,20 @@ Next development slices:
 
 ## Notes
 
+## Permissions, Notes, and Task Foundations Added
+
+Added migrations for permissions, projects, notes, tasks, and payroll foundation.
+
+Implemented:
+- login error/loading improvements
+- forgot password flow
+- capability helper foundation
+- crew dashboard shell
+- notes/inbox foundation
+
+Next target:
+- task engine UI and checklist execution flow
+
 Future work:
 
 Project cost tracking  
