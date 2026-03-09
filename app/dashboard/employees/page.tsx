@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
+import { inviteCrewMemberLogin } from './actions';
 
 type Employee = {
     id: string;
     display_name: string;
     pay_rate_cents: number;
     active: boolean;
+    user_id?: string;
+    email?: string;
 };
 
 export default function EmployeesPage() {
@@ -17,6 +20,8 @@ export default function EmployeesPage() {
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
     const [newPayRate, setNewPayRate] = useState('');
+    const [newEmail, setNewEmail] = useState('');
+    const [invitingId, setInvitingId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchEmployees();
@@ -44,7 +49,11 @@ export default function EmployeesPage() {
         const { data, error } = await supabase
             .from('employees')
             .insert([
-                { display_name: newName, pay_rate_cents: isNaN(payRateCents) ? 0 : payRateCents }
+                {
+                    display_name: newName,
+                    pay_rate_cents: isNaN(payRateCents) ? 0 : payRateCents,
+                    email: newEmail || null
+                }
             ])
             .select();
 
@@ -52,10 +61,38 @@ export default function EmployeesPage() {
             console.error('Error adding employee:', error);
             alert('Failed to add employee');
         } else if (data) {
-            setEmployees([...employees, data[0]].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+            const newEmp = data[0];
+
+            // Trigger invite if email was provided
+            if (newEmail) {
+                const res = await inviteCrewMemberLogin(newEmp.id, newEmail);
+                if (res.error) alert(res.error);
+                else newEmp.user_id = 'pending'; // optimistic UI
+            }
+
+            setEmployees([...employees, newEmp].sort((a, b) => a.display_name.localeCompare(b.display_name)));
             setNewName('');
             setNewPayRate('');
+            setNewEmail('');
         }
+    }
+
+    async function handleInvite(id: string) {
+        const email = prompt("Enter email address for this crew member:");
+        if (!email) return;
+
+        setInvitingId(id);
+        const res = await inviteCrewMemberLogin(id, email);
+        if (res.error) {
+            alert(res.error);
+        } else {
+            alert("Invite sent successfully!");
+            // Optimistic update
+            setEmployees(employees.map(emp =>
+                emp.id === id ? { ...emp, email, user_id: 'pending' } : emp
+            ));
+        }
+        setInvitingId(null);
     }
 
     async function toggleActive(id: string, currentStatus: boolean) {
@@ -97,6 +134,16 @@ export default function EmployeesPage() {
                         />
                     </div>
                     <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Email (Optional for Login Invite)</label>
+                        <input
+                            type="email"
+                            value={newEmail}
+                            onChange={(e) => setNewEmail(e.target.value)}
+                            style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '1rem' }}
+                            placeholder="e.g. john@example.com"
+                        />
+                    </div>
+                    <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Hourly Rate ($)</label>
                         <input
                             type="number"
@@ -129,9 +176,24 @@ export default function EmployeesPage() {
                                 <p style={{ margin: '0.25rem 0 0 0', color: 'var(--muted)' }}>
                                     ${(emp.pay_rate_cents / 100).toFixed(2)} / hr
                                 </p>
-                                <span className="badge" style={{ marginTop: '0.5rem', display: 'inline-block', background: emp.active ? '#dcfce7' : '#f3f4f6', color: emp.active ? '#166534' : '#374151', border: 'none' }}>
-                                    {emp.active ? 'Active' : 'Inactive'}
-                                </span>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+                                    <span className="badge" style={{ background: emp.active ? '#dcfce7' : '#f3f4f6', color: emp.active ? '#166534' : '#374151', border: 'none' }}>
+                                        {emp.active ? 'Active' : 'Inactive'}
+                                    </span>
+                                    {emp.user_id ? (
+                                        <span className="badge" style={{ background: '#dbeafe', color: '#1e3a8a', border: 'none' }}>
+                                            Linked Login
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleInvite(emp.id)}
+                                            disabled={invitingId === emp.id}
+                                            style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
+                                        >
+                                            {invitingId === emp.id ? 'Sending...' : 'Send Invite'}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <button
                                 onClick={() => toggleActive(emp.id, emp.active)}

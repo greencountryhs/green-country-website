@@ -24,6 +24,11 @@ export async function getUserCapabilities(userId?: string): Promise<string[]> {
             .single();
 
         if (profile?.role) {
+            // Give Master override if the profile is admin
+            if (profile.role === 'admin') {
+                capabilities.add('admin');
+            }
+
             // Fetch default capabilities for this role
             const { data: defaultCaps } = await supabase
                 .from('role_capabilities')

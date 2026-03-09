@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { logTaskItem } from '@/lib/tasks'
+import { logTaskItem } from '@/lib/tasks/actions'
 import { SubmitButton } from '@/components/submit-button'
 
 /**

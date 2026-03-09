@@ -40,23 +40,37 @@ export default async function DashboardHome() {
                 Select an option below to manage employees or track time.
             </p>
 
-            <div className="cards" style={{ maxWidth: '400px', margin: '2rem auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="cards" style={{ maxWidth: '400px', margin: '2rem auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {isAdmin && (
                     <>
+                        <Link href="/dashboard/tasks/admin" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#3b82f6' }}>
+                            Today's Board
+                        </Link>
+                        <Link href="/dashboard/tasks/scheduler" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#8b5cf6' }}>
+                            Week Scheduler
+                        </Link>
+                        <Link href="/dashboard/reports" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#10b981' }}>
+                            Operational Reports
+                        </Link>
                         <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                             Crew Management
                         </Link>
-                        <Link href="/dashboard/payroll" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', marginTop: '1rem' }}>
+                        <Link href="/dashboard/payroll" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                             Payroll
                         </Link>
                     </>
                 )}
-                <Link href="/dashboard/time" className="cta secondary" style={{ padding: '1.5rem', fontSize: '1.2rem', marginTop: '1rem' }}>
+                <Link href="/dashboard/time" className="cta secondary" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                     Time Tracking
                 </Link>
             </div>
 
-            <form action="/auth/signout" method="post" style={{ marginTop: '2rem' }}>
+            <form action={async () => {
+                'use server';
+                const supabase = await createClient();
+                await supabase.auth.signOut();
+                redirect('/login');
+            }} style={{ marginTop: '2rem' }}>
                 <button type="submit" className="link small">Sign Out</button>
             </form>
         </div>

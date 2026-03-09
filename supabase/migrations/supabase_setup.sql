@@ -38,6 +38,10 @@ create trigger on_auth_user_created
 alter table public.employees 
 add column if not exists user_id uuid references auth.users(id) on delete set null;
 
+-- Add email column (if not exists) to store invitation address
+alter table public.employees 
+add column if not exists email text;
+
 -- ==========================================
 -- 3. DROP EXISTING/DEV POLICIES
 -- ==========================================

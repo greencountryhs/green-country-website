@@ -39,10 +39,10 @@ export default async function CrewTasksPage() {
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1.5rem' }}>
                     {tasks.map((t: any) => (
-                        <div key={t.instance_id} className="card">
+                        <div key={t.task_assignment_instance_id} className="card">
                             <h2 style={{ fontSize: '1.3rem', margin: '0 0 1rem 0' }}>{t.assignment_name}</h2>
                             <TaskDisplayList
-                                instanceId={t.instance_id}
+                                instanceId={t.task_assignment_instance_id}
                                 employeeId={employee.id}
                                 displayMode={t.display_mode}
                             />
