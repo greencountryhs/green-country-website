@@ -75,3 +75,51 @@ export async function reassignTaskInstance(instanceId: string, targetType: strin
     revalidatePath('/dashboard/tasks/scheduler')
     revalidatePath('/dashboard/tasks')
 }
+
+export async function createSchedulerInstance(
+    dateStr: string,
+    title: string,
+    templateId?: string,
+    displayMode: 'full' | 'single' | 'section' = 'full'
+) {
+    const supabase = await createClient()
+
+    let legacyAssignmentId = null
+
+    if (templateId) {
+        const { data: legacy, error: legacyErr } = await supabase
+            .from('task_assignments')
+            .insert([{
+                task_template_id: templateId,
+                assignment_date: dateStr,
+                title: title,
+                display_mode: displayMode
+            }])
+            .select('id')
+            .single()
+
+        if (legacyErr) throw new Error("Failed to create template tracking baseline")
+        legacyAssignmentId = legacy.id
+    }
+
+    const { data: instance, error: instanceErr } = await supabase
+        .from('task_assignment_instances')
+        .insert([{
+            task_assignment_id: legacyAssignmentId,
+            assignment_date: dateStr,
+            title: title,
+            display_mode: displayMode,
+            is_override: !templateId,
+            status: 'scheduled'
+        }])
+        .select('id')
+        .single()
+
+    if (instanceErr) throw new Error("Failed to schedule instance")
+
+    revalidatePath('/dashboard/tasks/scheduler')
+    revalidatePath('/dashboard/tasks')
+
+    return { success: true, instanceId: instance.id }
+}
+

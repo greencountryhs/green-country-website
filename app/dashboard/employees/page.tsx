@@ -58,19 +58,32 @@ export default function EmployeesPage() {
             .select();
 
         if (error) {
-            console.error('Error adding employee:', error);
-            alert('Failed to add employee');
+            console.error('[page.tsx] Error adding employee:', error);
+            alert(`Failed to add employee: ${error.message}`);
         } else if (data) {
             const newEmp = data[0];
+            console.log("[page.tsx] Employee inserted successfully:", newEmp);
 
             // Trigger invite if email was provided
             if (newEmail) {
-                const res = await inviteCrewMemberLogin(newEmp.id, newEmail);
-                if (res.error) alert(res.error);
-                else newEmp.user_id = 'pending'; // optimistic UI
+                try {
+                    console.log(`[page.tsx] Inviting newly created employee ${newEmail}...`);
+                    const res = await inviteCrewMemberLogin(newEmp.id, newEmail);
+                    if (res?.error) {
+                        alert(`Employee created, but invite failed: ${res.error}`);
+                    } else {
+                        newEmp.user_id = 'pending'; // optimistic UI
+                        alert(`Employee created and invite sent to ${newEmail}!`);
+                    }
+                } catch (err: any) {
+                    console.error("[page.tsx] Invite trigger threw an exception:", err);
+                    alert(`Employee created, but invite encountered an error: ${err.message}`);
+                }
+            } else {
+                alert(`Employee ${newEmp.display_name} created successfully!`);
             }
 
-            setEmployees([...employees, newEmp].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+            setEmployees(prev => [...prev, newEmp].sort((a, b) => a.display_name.localeCompare(b.display_name)));
             setNewName('');
             setNewPayRate('');
             setNewEmail('');
@@ -82,17 +95,24 @@ export default function EmployeesPage() {
         if (!email) return;
 
         setInvitingId(id);
-        const res = await inviteCrewMemberLogin(id, email);
-        if (res.error) {
-            alert(res.error);
-        } else {
-            alert("Invite sent successfully!");
-            // Optimistic update
-            setEmployees(employees.map(emp =>
-                emp.id === id ? { ...emp, email, user_id: 'pending' } : emp
-            ));
+        try {
+            console.log(`[page.tsx] Sending manual invite for employee ${id} to ${email}`);
+            const res = await inviteCrewMemberLogin(id, email);
+            if (res?.error) {
+                alert(`Invite failed: ${res.error}`);
+            } else {
+                alert("Invite sent successfully!");
+                // Optimistic update
+                setEmployees(prev => prev.map(emp =>
+                    emp.id === id ? { ...emp, email, user_id: 'pending' } : emp
+                ));
+            }
+        } catch (err: any) {
+            console.error("[page.tsx] Invite threw an exception:", err);
+            alert(`Invite failed: ${err.message}`);
+        } finally {
+            setInvitingId(null);
         }
-        setInvitingId(null);
     }
 
     async function toggleActive(id: string, currentStatus: boolean) {
@@ -172,7 +192,9 @@ export default function EmployeesPage() {
                     {employees.map(emp => (
                         <div key={emp.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: emp.active ? 1 : 0.6 }}>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{emp.display_name}</h3>
+                                <Link href={`/dashboard/employees/${emp.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{emp.display_name} <span style={{ fontSize: '0.8rem', color: 'var(--primary)' }}>&rarr; View Detail</span></h3>
+                                </Link>
                                 <p style={{ margin: '0.25rem 0 0 0', color: 'var(--muted)' }}>
                                     ${(emp.pay_rate_cents / 100).toFixed(2)} / hr
                                 </p>

@@ -1,7 +1,16 @@
 import { updatePassword } from './actions'
 import { SubmitButton } from '@/components/submit-button'
+import { createClient } from '@/utils/supabase/server'
+import { redirect } from 'next/navigation'
 
-export default function UpdatePasswordPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function UpdatePasswordPage({ searchParams }: { searchParams: { error?: string } }) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        redirect('/login?error=Please log in with your invite link to set your password.')
+    }
+
     return (
         <div className="page center">
             <form action={updatePassword} className="callout" style={{ maxWidth: '400px', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem', margin: '2rem auto' }}>

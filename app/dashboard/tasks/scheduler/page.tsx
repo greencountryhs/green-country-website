@@ -5,6 +5,7 @@ import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 import { getWeekAssignmentInstances, groupWeekAssignmentInstancesByDate, getTaskTemplates } from '@/lib/tasks'
 import { InstanceActions } from './SchedulerActions'
+import { AddTaskButton } from './AddTaskButton'
 
 export default async function WeekSchedulerPage({ searchParams }: { searchParams: { date?: string } }) {
     const isAuthorized = await requireCapability(CAPABILITIES.MANAGE_TASKS)
@@ -49,7 +50,11 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                         <input type="date" name="date" defaultValue={weekStartStr} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)' }} />
                         <button type="submit" className="cta secondary">Go</button>
                     </form>
-                    <button className="cta primary">Schedule Template...</button>
+                    <AddTaskButton
+                        dateStr={weekStartStr}
+                        templates={templates || []}
+                        label="Schedule Template..."
+                    />
                 </div>
             </div>
 
@@ -78,14 +83,31 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                                 background: isToday ? 'var(--primary)' : '#e2e8f0',
                                 color: isToday ? 'white' : 'inherit',
                                 borderBottom: '1px solid var(--border)',
-                                textAlign: 'center'
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
                             }}>
-                                <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
-                                    {dayDate.toLocaleDateString([], { weekday: 'short' })}
+                                <div>
+                                    <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 600 }}>
+                                        {dayDate.toLocaleDateString([], { weekday: 'short' })}
+                                    </div>
+                                    <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>
+                                        {dayDate.getDate()}
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>
-                                    {dayDate.getDate()}
-                                </div>
+                                <AddTaskButton
+                                    dateStr={dayStr}
+                                    templates={templates || []}
+                                    label="+"
+                                    className=""
+                                    style={{
+                                        background: isToday ? 'rgba(255,255,255,0.2)' : 'white',
+                                        color: isToday ? 'white' : 'var(--foreground)',
+                                        border: 'none', borderRadius: '4px', width: '28px', height: '28px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', fontWeight: 'bold'
+                                    }}
+                                />
                             </div>
 
                             <div style={{ padding: '0.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto' }}>

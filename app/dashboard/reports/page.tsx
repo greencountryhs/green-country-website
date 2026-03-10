@@ -99,7 +99,11 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                             <tbody>
                                 {weeklyHours.map((row: any, i) => (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>{row.employee_name}</td>
+                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>
+                                            <Link href={`/dashboard/employees/${row.employee_id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                                                {row.employee_name}
+                                            </Link>
+                                        </td>
                                         <td style={{ padding: '0.5rem' }}>{row.week_start}</td>
                                         <td style={{ padding: '0.5rem', fontWeight: 600 }}>{row.total_hours} hr</td>
                                     </tr>
@@ -128,7 +132,11 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                             <tbody>
                                 {missingClockOuts.map((t: any) => (
                                     <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>{t.employee_name}</td>
+                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>
+                                            <Link href={`/dashboard/employees/${t.employee_id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                                                {t.employee_name}
+                                            </Link>
+                                        </td>
                                         <td style={{ padding: '0.5rem' }}>{t.work_date}</td>
                                         <td style={{ padding: '0.5rem' }}>{formatTimeDisplay(t.clock_in)}</td>
                                         <td style={{ padding: '0.5rem' }}>
@@ -169,7 +177,11 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                             <tbody>
                                 {recentEntries.map((t: any) => (
                                     <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>{t.employee_name}</td>
+                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>
+                                            <Link href={`/dashboard/employees/${t.employee_id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                                                {t.employee_name}
+                                            </Link>
+                                        </td>
                                         <td style={{ padding: '0.5rem' }}>{t.work_date}</td>
                                         <td style={{ padding: '0.5rem' }}>
                                             <div>{formatTimeDisplay(t.clock_in)}</div>

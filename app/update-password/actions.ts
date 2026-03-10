@@ -15,5 +15,5 @@ export async function updatePassword(formData: FormData) {
         redirect('/update-password?error=Could not update password.')
     }
 
-    redirect('/dashboard')
+    redirect('/dashboard/tasks')
 }
