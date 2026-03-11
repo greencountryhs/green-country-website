@@ -1,5 +1,6 @@
 import { login } from './actions'
 import { SubmitButton } from '@/components/submit-button'
+import { PasswordInput } from '@/components/password-input'
 import Link from 'next/link'
 
 export default function LoginPage({ searchParams }: { searchParams: { error?: string, message?: string } }) {
@@ -30,16 +31,7 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
                     />
                 </div>
 
-                <div>
-                    <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Password</label>
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        required
-                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '1rem' }}
-                    />
-                </div>
+                <PasswordInput name="password" id="password" label="Password" required />
 
                 <SubmitButton>Log In</SubmitButton>
 

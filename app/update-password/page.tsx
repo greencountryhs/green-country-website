@@ -1,5 +1,6 @@
 import { updatePassword } from './actions'
 import { SubmitButton } from '@/components/submit-button'
+import { PasswordInput } from '@/components/password-input'
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -34,16 +35,7 @@ export default async function UpdatePasswordPage({ searchParams }: { searchParam
                     </div>
                 )}
 
-                <div>
-                    <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>New Password</label>
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        required
-                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '1rem' }}
-                    />
-                </div>
+                <PasswordInput name="password" id="password" label="New Password" required />
 
                 <SubmitButton>Update Password</SubmitButton>
             </form>

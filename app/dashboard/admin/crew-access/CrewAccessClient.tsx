@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { adminSetTempPassword, adminRepairLink, adminSendInvite } from './actions'
+import { PasswordInput } from '@/components/password-input'
 
 type EmployeeMergedData = {
     employee_id: string;
@@ -110,15 +111,13 @@ export function CrewAccessClient({ crewData }: { crewData: EmployeeMergedData[] 
                         <h3>Set Temp Password for {tempPasswordContext.name}</h3>
                         <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '1rem' }}>This instantly overwrites their login password via API. No email will be sent. The user can log in immediately.</p>
 
-                        <input
-                            type="text"
-                            required
-                            placeholder="Type new password..."
+                        <PasswordInput 
                             value={tempPasswordValue}
                             onChange={(e) => setTempPasswordValue(e.target.value)}
-                            style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', border: '1px solid var(--border)', borderRadius: '4px' }}
+                            placeholder="Type new password..."
+                            required
                         />
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
                             <button type="button" onClick={() => setTempPasswordContext(null)} className="cta secondary" disabled={isSaving}>Cancel</button>
                             <button type="submit" className="cta primary" disabled={isSaving}>{isSaving ? 'Working...' : 'Force Password'}</button>
                         </div>
