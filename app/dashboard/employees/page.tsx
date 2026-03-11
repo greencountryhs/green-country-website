@@ -22,6 +22,10 @@ export default function EmployeesPage() {
     const [newPayRate, setNewPayRate] = useState('');
     const [newEmail, setNewEmail] = useState('');
     const [invitingId, setInvitingId] = useState<string | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
+
+    const [pageStatus, setPageStatus] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+    const [inviteInput, setInviteInput] = useState<{ id: string, email: string } | null>(null);
 
     useEffect(() => {
         fetchEmployees();
@@ -35,7 +39,8 @@ export default function EmployeesPage() {
             .order('display_name');
 
         if (error) {
-            console.error('Error fetching employees:', error);
+            console.error('[page.tsx] Error fetching employees:', error);
+            setPageStatus({ type: 'error', text: 'Error fetching crew data.' });
         } else {
             setEmployees(data || []);
         }
@@ -44,14 +49,23 @@ export default function EmployeesPage() {
 
     async function addEmployee(e: React.FormEvent) {
         e.preventDefault();
-        const payRateCents = Math.round(parseFloat(newPayRate) * 100);
+        if (isAdding) {
+            console.log('[page.tsx] Duplicate addEmployee call dropped.');
+            return;
+        }
+        setIsAdding(true);
+        setPageStatus(null);
+
+        let payRateFloat = parseFloat(newPayRate);
+        if (isNaN(payRateFloat)) payRateFloat = 0;
+        const payRateCents = Math.round(payRateFloat * 100);
 
         const { data, error } = await supabase
             .from('employees')
             .insert([
                 {
                     display_name: newName,
-                    pay_rate_cents: isNaN(payRateCents) ? 0 : payRateCents,
+                    pay_rate_cents: payRateCents,
                     email: newEmail || null
                 }
             ])
@@ -59,57 +73,68 @@ export default function EmployeesPage() {
 
         if (error) {
             console.error('[page.tsx] Error adding employee:', error);
-            alert(`Failed to add employee: ${error.message}`);
+            setPageStatus({ type: 'error', text: `Failed to create employee record: ${error.message}` });
         } else if (data) {
             const newEmp = data[0];
             console.log("[page.tsx] Employee inserted successfully:", newEmp);
 
-            // Trigger invite if email was provided
+            // Optimistically update the list BEFORE starting the invite process
+            // so the user sees the new employee immediately even if the phone drops the invite HTTP request.
+            setEmployees(prev => [...prev, newEmp].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+            setNewName('');
+            setNewPayRate('');
+            setNewEmail('');
+
             if (newEmail) {
                 try {
                     console.log(`[page.tsx] Inviting newly created employee ${newEmail}...`);
                     const res = await inviteCrewMemberLogin(newEmp.id, newEmail);
                     if (res?.error) {
-                        alert(`Employee created, but invite failed: ${res.error}`);
+                        setPageStatus({ type: 'error', text: `Employee created, but invite failed: ${res.error}` });
                     } else {
-                        newEmp.user_id = 'pending'; // optimistic UI
-                        alert(`Employee created and invite sent to ${newEmail}!`);
+                        // Success update
+                        setEmployees(prev => prev.map(emp => emp.id === newEmp.id ? { ...emp, user_id: 'pending', email: newEmail } : emp));
+                        setPageStatus({ type: 'success', text: `Employee created and invite sent to ${newEmail}!` });
                     }
                 } catch (err: any) {
                     console.error("[page.tsx] Invite trigger threw an exception:", err);
-                    alert(`Employee created, but invite encountered an error: ${err.message}`);
+                    setPageStatus({ type: 'error', text: `Employee created, but invite encountered a critical error: ${err.message}` });
                 }
             } else {
-                alert(`Employee ${newEmp.display_name} created successfully!`);
+                setPageStatus({ type: 'success', text: `Employee ${newEmp.display_name} created successfully!` });
             }
-
-            setEmployees(prev => [...prev, newEmp].sort((a, b) => a.display_name.localeCompare(b.display_name)));
-            setNewName('');
-            setNewPayRate('');
-            setNewEmail('');
         }
+        setIsAdding(false);
     }
 
-    async function handleInvite(id: string) {
-        const email = prompt("Enter email address for this crew member:");
-        if (!email) return;
+    async function submitInvite(id: string, email: string) {
+        if (!email) {
+            setPageStatus({ type: 'error', text: 'Please provide an email address.' });
+            return;
+        }
+        if (invitingId) {
+            console.log('[page.tsx] Duplicate submitInvite call dropped.');
+            return;
+        }
 
+        setPageStatus(null);
         setInvitingId(id);
+
         try {
             console.log(`[page.tsx] Sending manual invite for employee ${id} to ${email}`);
             const res = await inviteCrewMemberLogin(id, email);
             if (res?.error) {
-                alert(`Invite failed: ${res.error}`);
+                setPageStatus({ type: 'error', text: `Invite failed: ${res.error}` });
             } else {
-                alert("Invite sent successfully!");
-                // Optimistic update
+                setPageStatus({ type: 'success', text: `Invite sent successfully to ${email}!` });
+                setInviteInput(null);
                 setEmployees(prev => prev.map(emp =>
                     emp.id === id ? { ...emp, email, user_id: 'pending' } : emp
                 ));
             }
         } catch (err: any) {
             console.error("[page.tsx] Invite threw an exception:", err);
-            alert(`Invite failed: ${err.message}`);
+            setPageStatus({ type: 'error', text: `Invite failed: ${err.message}` });
         } finally {
             setInvitingId(null);
         }
@@ -122,10 +147,10 @@ export default function EmployeesPage() {
             .eq('id', id);
 
         if (error) {
-            console.error('Error updating status:', error);
-            alert('Failed to update status');
+            console.error('[page.tsx] Error updating status:', error);
+            setPageStatus({ type: 'error', text: `Failed to update status: ${error.message}` });
         } else {
-            setEmployees(employees.map(emp =>
+            setEmployees(prev => prev.map(emp =>
                 emp.id === id ? { ...emp, active: !currentStatus } : emp
             ));
         }
@@ -138,6 +163,13 @@ export default function EmployeesPage() {
             </Link>
 
             <h1>Crew Management</h1>
+
+            {pageStatus && (
+                <div style={{ padding: '1rem', marginBottom: '1.5rem', borderRadius: '8px', border: `1px solid ${pageStatus.type === 'error' ? '#fca5a5' : '#86efac'}`, background: pageStatus.type === 'error' ? '#fef2f2' : '#f0fdf4', color: pageStatus.type === 'error' ? '#991b1b' : '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{pageStatus.text}</span>
+                    <button onClick={() => setPageStatus(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'inherit' }}>×</button>
+                </div>
+            )}
 
             <div className="callout" style={{ marginBottom: '2rem' }}>
                 <h3>Add New Crew Member</h3>
@@ -176,8 +208,8 @@ export default function EmployeesPage() {
                             placeholder="e.g. 25.00"
                         />
                     </div>
-                    <button type="submit" className="cta" style={{ marginTop: '0.5rem' }}>
-                        Add Crew Member
+                    <button type="submit" className="cta" style={{ marginTop: '0.5rem' }} disabled={isAdding}>
+                        {isAdding ? 'Adding...' : 'Add Crew Member'}
                     </button>
                 </form>
             </div>
@@ -206,13 +238,37 @@ export default function EmployeesPage() {
                                         <span className="badge" style={{ background: '#dbeafe', color: '#1e3a8a', border: 'none' }}>
                                             Linked Login
                                         </span>
+                                    ) : inviteInput?.id === emp.id ? (
+                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                            <input
+                                                type="email"
+                                                placeholder="Email to invite"
+                                                value={inviteInput.email}
+                                                onChange={(e) => setInviteInput({ id: emp.id, email: e.target.value })}
+                                                style={{ fontSize: '0.75rem', padding: '0.2rem', border: '1px solid var(--border)', borderRadius: '4px', maxWidth: '140px' }}
+                                                autoFocus
+                                            />
+                                            <button
+                                                onClick={() => submitInvite(emp.id, inviteInput.email)}
+                                                disabled={invitingId === emp.id}
+                                                style={{ fontSize: '0.75rem', padding: '0.3rem 0.5rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                            >
+                                                {invitingId === emp.id ? '...' : 'Send'}
+                                            </button>
+                                            <button
+                                                onClick={() => setInviteInput(null)}
+                                                disabled={invitingId === emp.id}
+                                                style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'transparent', color: 'var(--muted)', border: 'none', cursor: 'pointer' }}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
                                     ) : (
                                         <button
-                                            onClick={() => handleInvite(emp.id)}
-                                            disabled={invitingId === emp.id}
+                                            onClick={() => setInviteInput({ id: emp.id, email: emp.email || '' })}
                                             style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer' }}
                                         >
-                                            {invitingId === emp.id ? 'Sending...' : 'Send Invite'}
+                                            Send Invite
                                         </button>
                                     )}
                                 </div>

@@ -2,20 +2,30 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { getURL } from '@/utils/get-url'
 
 export async function resetPassword(formData: FormData) {
     const supabase = await createClient()
     const email = formData.get('email') as string
 
-    // Get origin for the reset link redirect (in a real app, you might want to configure this more robustly)
-    // We can use a standard relative URL and Supabase constructs it with the Site URL
+    const timestamp = new Date().toISOString()
+    console.log(`[AUDIT - ${timestamp}] resetPassword action invoked for email: ${email}`)
+
+    // Get origin for the reset link redirect
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/update-password`,
+        redirectTo: `${getURL()}auth/callback?next=/update-password`,
     })
 
     if (error) {
-        redirect('/forgot-password?error=Could not send reset link. Please try again.')
+        console.error(`[AUDIT - ${timestamp}] resetPassword API ERROR for ${email}:`, error)
+
+        if (error.message?.toLowerCase().includes('rate limit')) {
+            redirect(`/forgot-password?error=${encodeURIComponent("Email Rate Limit Exceeded. Supabase enforces a strict hourly limit on default emails. Please wait or configure Custom SMTP.")}`)
+        }
+
+        redirect(`/forgot-password?error=${encodeURIComponent(`Provider Error: ${error.message}`)}`)
     }
 
+    console.log(`[AUDIT - ${timestamp}] resetPassword API SUCCESS for ${email}`)
     redirect('/forgot-password?message=Check your email for the password reset link.')
 }

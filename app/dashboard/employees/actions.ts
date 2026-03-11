@@ -2,16 +2,22 @@
 
 import { createAdminClient } from '@/utils/supabase/service'
 import { createClient } from '@/utils/supabase/server'
+import { getURL } from '@/utils/get-url'
 
 export async function inviteCrewMemberLogin(employeeId: string, email: string) {
     try {
-        console.log(`[actions.ts] Starting invite flow for employee: ${employeeId}, email: ${email}`);
+        const timestamp = new Date().toISOString()
+        console.log(`[AUDIT - ${timestamp}] Starting invite flow for employee: ${employeeId}, email: ${email}`);
 
         // 1. Verify caller is an admin
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) return { error: "Not authenticated" }
+
+        if (user.email && email.trim().toLowerCase() === user.email.toLowerCase()) {
+            return { error: "Safety Guard: You cannot invite your own admin email address as a crew member. Please use a different email (or a +alias like admin+test1@gmail.com) to test the invite flow without modifying your admin account." }
+        }
 
         const { data: profile } = await supabase
             .from('profiles')
@@ -29,28 +35,25 @@ export async function inviteCrewMemberLogin(employeeId: string, email: string) {
         console.log(`[actions.ts] Admin authenticated. Initializing admin auth client...`);
         const adminAuthClient = createAdminClient()
 
-        let siteUrl = process.env.NEXT_PUBLIC_SITE_URL ||
-            process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ||
-            process.env.NEXT_PUBLIC_VERCEL_URL ||
-            process.env.VERCEL_URL ||
-            'http://localhost:3000'
+        const siteUrl = getURL()
 
-        if (!siteUrl.startsWith('http')) {
-            siteUrl = `https://${siteUrl}`
-        }
-
-        console.log(`[actions.ts] Sending invite via Supabase API... Target Redirect: ${siteUrl}/auth/confirm`);
+        console.log(`[AUDIT - ${timestamp}] Sending invite via Supabase API (API CALL 1 of 1)... Target Redirect: ${siteUrl}auth/confirm`);
         const { data: inviteData, error: inviteError } = await adminAuthClient.auth.admin.inviteUserByEmail(email, {
-            redirectTo: `${siteUrl}/auth/confirm`
+            redirectTo: `${siteUrl}auth/confirm`
         })
 
         if (inviteError) {
-            console.error("[actions.ts] Supabase invite error:", inviteError)
+            console.error(`[AUDIT - ${timestamp}] Supabase invite error:`, inviteError)
+
+            if (inviteError.message?.toLowerCase().includes('rate limit')) {
+                return { error: `Email Rate Limit Exceeded. Supabase enforces a strict limit (often 3 emails per hour) to prevent spam. Please wait before trying again.` }
+            }
+
             return { error: `Supabase Invite Error: ${inviteError.message}` }
         }
 
         const newUserId = inviteData.user.id
-        console.log(`[actions.ts] Invite sent successfully. New Auth User ID: ${newUserId}`);
+        console.log(`[AUDIT - ${timestamp}] Invite sent successfully. New Auth User ID: ${newUserId}`);
 
         // 3. The `on_auth_user_created` trigger in Postgres automatically creates the `profiles` row.
         // We just need to link the `employees` row to this `user_id`.
