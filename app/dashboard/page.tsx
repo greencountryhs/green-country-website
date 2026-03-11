@@ -63,6 +63,11 @@ export default async function DashboardHome() {
                 <Link href="/dashboard/time" className="cta secondary" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                     Time Tracking
                 </Link>
+                {!isAdmin && (
+                    <Link href="/dashboard/crew" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#3b82f6' }}>
+                        My Crew Workspace
+                    </Link>
+                )}
             </div>
 
             <form action={async () => {
