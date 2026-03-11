@@ -47,8 +47,9 @@ export default function RootLayout({ children }) {
                 <a className="link" href="sms:+19188846615">
                   (918) 884-6615
                 </a>
-                <div className="small" style={{ marginTop: ".35rem" }}>
-                  © {new Date().getFullYear()}
+                <div className="small" style={{ marginTop: ".35rem", display: "flex", gap: "1rem" }}>
+                  <span>© {new Date().getFullYear()}</span>
+                  <a href="/login" style={{ color: "inherit", textDecoration: "none", opacity: 0.6 }}>Crew Login</a>
                 </div>
               </div>
             </div>
