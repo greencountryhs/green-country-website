@@ -186,9 +186,11 @@ export function groupWeekAssignmentInstancesByDate(
 }
 
 export async function getTodaysTasks(employeeId: string) {
-    // For crew members today
     const supabase = await createClient()
     const todayStr = new Date().toISOString().split('T')[0]
+
+    const { data: roles } = await supabase.from('employee_roles').select('role_id').eq('employee_id', employeeId)
+    const roleIds = roles?.map(r => r.role_id) || []
 
     const { data, error } = await supabase
         .from('task_assignment_instances')
@@ -198,19 +200,102 @@ export async function getTodaysTasks(employeeId: string) {
             assignment_date,
             title,
             status,
-            display_mode
+            display_mode,
+            task_assignment_instance_targets (
+                target_type,
+                employee_id,
+                role_id
+            )
         `)
         .eq('assignment_date', todayStr)
 
     if (error) console.error("Error fetching today's tasks:", error)
 
-    return data?.map((inst: any) => ({
+    // JS filter to ensure only relevant tasks show up
+    const filtered = (data || []).filter((inst: any) => {
+        const targets = inst.task_assignment_instance_targets || []
+        return targets.some((t: any) => 
+            t.target_type === 'all_crew' || 
+            (t.target_type === 'employee' && t.employee_id === employeeId) ||
+            (t.target_type === 'role' && roleIds.includes(t.role_id))
+        )
+    })
+
+    return filtered.map((inst: any) => ({
         task_assignment_instance_id: inst.id,
         assignment_id: inst.task_assignment_id,
         assignment_name: inst.title,
         display_mode: inst.display_mode || 'full',
         status: inst.status
-    })) || []
+    }))
 }
 
+export async function getTaskInstanceItems(instanceId: string) {
+    const supabase = await createClient()
 
+    const { data: instance } = await supabase
+        .from('task_assignment_instances')
+        .select(`
+            id,
+            title,
+            task_assignment_id,
+            task_assignments (
+                task_template_id
+            ),
+            task_item_logs (
+                task_template_item_id,
+                status
+            )
+        `)
+        .eq('id', instanceId)
+        .single()
+
+    if (!instance) return []
+
+    const logs = instance.task_item_logs || []
+    const templateId = Array.isArray(instance.task_assignments) 
+        ? instance.task_assignments[0]?.task_template_id 
+        : (instance.task_assignments as any)?.task_template_id
+
+    if (templateId) {
+        const { data: sections } = await supabase
+            .from('task_template_sections')
+            .select(`
+                id,
+                title,
+                task_template_items (
+                    id,
+                    content,
+                    sort_order
+                )
+            `)
+            .eq('task_template_id', templateId)
+            .order('sort_order')
+
+        let items: any[] = []
+        if (sections) {
+            for (const sec of sections) {
+                const sectionItems = sec.task_template_items || []
+                sectionItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
+                for (const item of sectionItems) {
+                    const isCompleted = logs.some((l: any) => l.task_template_item_id === item.id && l.status === 'completed')
+                    items.push({
+                        id: item.id,
+                        content: item.content,
+                        section: sec.title,
+                        completed: isCompleted
+                    })
+                }
+            }
+        }
+        return items
+    } else {
+        const isCompleted = logs.some((l: any) => l.task_template_item_id === null && l.status === 'completed')
+        return [{
+            id: 'custom',
+            content: instance.title,
+            section: null,
+            completed: isCompleted
+        }]
+    }
+}

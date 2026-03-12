@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getTodaysTasks } from '@/lib/tasks'
+import { getTodaysTasks, getTaskInstanceItems } from '@/lib/tasks'
 import { TaskDisplayList } from '@/app/dashboard/tasks/TaskDisplayList'
 
 export default async function CrewTasksPage() {
@@ -24,6 +24,12 @@ export default async function CrewTasksPage() {
 
     const tasks = await getTodaysTasks(employee.id)
 
+    // Fetch the actual task checklist items for each assigned instance for the day
+    const tasksWithItems = await Promise.all(tasks.map(async (t: any) => ({
+        ...t,
+        items: await getTaskInstanceItems(t.task_assignment_instance_id)
+    })))
+
     return (
         <div className="page">
             <Link href="/dashboard/crew" className="link small" style={{ display: 'inline-block', marginBottom: '1rem' }}>
@@ -32,19 +38,20 @@ export default async function CrewTasksPage() {
 
             <h1>Today's Tasks</h1>
 
-            {tasks.length === 0 ? (
+            {tasksWithItems.length === 0 ? (
                 <div className="card callout" style={{ textAlign: 'center', marginTop: '2rem' }}>
                     <p style={{ margin: 0, color: 'var(--muted)' }}>No tasks scheduled for today.</p>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1.5rem' }}>
-                    {tasks.map((t: any) => (
+                    {tasksWithItems.map((t: any) => (
                         <div key={t.task_assignment_instance_id} className="card">
                             <h2 style={{ fontSize: '1.3rem', margin: '0 0 1rem 0' }}>{t.assignment_name}</h2>
                             <TaskDisplayList
                                 instanceId={t.task_assignment_instance_id}
                                 employeeId={employee.id}
                                 displayMode={t.display_mode}
+                                initialItems={t.items}
                             />
                         </div>
                     ))}

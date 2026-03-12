@@ -12,33 +12,33 @@ import { SubmitButton } from '@/components/submit-button'
 export function TaskDisplayList({
     instanceId,
     employeeId,
-    displayMode
+    displayMode,
+    initialItems
 }: {
     instanceId: string,
     employeeId: string,
-    displayMode: string
+    displayMode: string,
+    initialItems: any[]
 }) {
-    // Demonstration hardcoded items to simulate the UI layer progression requirement
-    const [items, setItems] = useState([
-        { id: 'item-1', content: 'Unload standard equipment', completed: false },
-        { id: 'item-2', content: 'Secure area parameters', completed: false },
-        { id: 'item-3', content: 'Complete phase 1 installation', completed: false }
-    ])
+    const [items, setItems] = useState(initialItems)
 
     async function handleComplete(itemId: string) {
         // Optimistic UI update
         setItems(items.map(i => i.id === itemId ? { ...i, completed: true } : i))
 
         // Backend persistent log
-        await logTaskItem(instanceId, itemId, employeeId)
+        const actualLogId = itemId === 'custom' ? null : itemId;
+        await logTaskItem(instanceId, actualLogId, employeeId)
     }
 
-    const progressPercent = Math.round((items.filter(i => i.completed).length / items.length) * 100)
-    const allCompleted = progressPercent === 100
+    const progressPercent = items.length > 0 
+        ? Math.round((items.filter(i => i.completed).length / items.length) * 100)
+        : 100;
+    const allCompleted = items.length === 0 || progressPercent === 100;
 
     // For single/section reveal logic:
     const nextIncompleteIndex = items.findIndex(i => !i.completed)
-    const activeItem = items[nextIncompleteIndex]
+    const activeItem = nextIncompleteIndex >= 0 ? items[nextIncompleteIndex] : null;
 
     return (
         <div>

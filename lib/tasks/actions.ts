@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { ScheduleDirection } from './index'
 
-export async function logTaskItem(instanceId: string, templateItemId: string, employeeId: string) {
+export async function logTaskItem(instanceId: string, templateItemId: string | null, employeeId: string) {
     const supabase = await createClient()
     const { error } = await supabase
         .from('task_item_logs')

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
-import { inviteCrewMemberLogin } from './actions';
+import { inviteCrewMemberLogin, sendManagerNote } from './actions';
 
 type Employee = {
     id: string;
@@ -27,9 +27,24 @@ export default function EmployeesPage() {
     const [pageStatus, setPageStatus] = useState<{ type: 'error' | 'success', text: string } | null>(null);
     const [inviteInput, setInviteInput] = useState<{ id: string, email: string } | null>(null);
 
+    // Manager Note Modal State
+    const [managerEmpId, setManagerEmpId] = useState<string | null>(null);
+    const [messageModalTarget, setMessageModalTarget] = useState<{id: string, name: string} | null>(null);
+    const [messageContent, setMessageContent] = useState('');
+    const [isSendingMessage, setIsSendingMessage] = useState(false);
+
     useEffect(() => {
         fetchEmployees();
+        fetchManager();
     }, []);
+
+    async function fetchManager() {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data } = await supabase.from('employees').select('id').eq('user_id', user.id).single()
+            if (data) setManagerEmpId(data.id)
+        }
+    }
 
     async function fetchEmployees() {
         setLoading(true);
@@ -156,6 +171,23 @@ export default function EmployeesPage() {
         }
     }
 
+    async function submitMessage(e: React.FormEvent) {
+        e.preventDefault()
+        if (!messageModalTarget || !managerEmpId || !messageContent) return;
+
+        setIsSendingMessage(true)
+        const res = await sendManagerNote(messageModalTarget.id, managerEmpId, messageContent)
+        
+        if (res?.error) {
+            setPageStatus({ type: 'error', text: res.error })
+        } else {
+            setPageStatus({ type: 'success', text: `Message sent to ${messageModalTarget.name}!` })
+            setMessageModalTarget(null)
+            setMessageContent('')
+        }
+        setIsSendingMessage(false)
+    }
+
     return (
         <div className="page">
             <Link href="/dashboard" className="link small" style={{ marginBottom: '1rem', display: 'inline-block' }}>
@@ -168,6 +200,34 @@ export default function EmployeesPage() {
                 <div style={{ padding: '1rem', marginBottom: '1.5rem', borderRadius: '8px', border: `1px solid ${pageStatus.type === 'error' ? '#fca5a5' : '#86efac'}`, background: pageStatus.type === 'error' ? '#fef2f2' : '#f0fdf4', color: pageStatus.type === 'error' ? '#991b1b' : '#166534', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{pageStatus.text}</span>
                     <button onClick={() => setPageStatus(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'inherit' }}>×</button>
+                </div>
+            )}
+
+            {messageModalTarget && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+                    <div className="card" style={{ width: '100%', maxWidth: '500px', margin: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Message {messageModalTarget.name}</h3>
+                            <button onClick={() => setMessageModalTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
+                        </div>
+                        {managerEmpId ? (
+                            <form onSubmit={submitMessage} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <textarea
+                                    value={messageContent}
+                                    onChange={(e) => setMessageContent(e.target.value)}
+                                    placeholder="Type your note here. It will be pinned to their Today board until they acknowledge it."
+                                    required
+                                    rows={4}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '4px', border: '1px solid var(--border)', resize: 'vertical' }}
+                                />
+                                <button type="submit" className="cta primary" disabled={isSendingMessage}>
+                                    {isSendingMessage ? 'Sending...' : 'Send Message'}
+                                </button>
+                            </form>
+                        ) : (
+                            <p style={{ color: 'red' }}>Your Admin account is not linked to an employee record! You cannot send notes until you link your login to an employee in Crew Access.</p>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -271,6 +331,12 @@ export default function EmployeesPage() {
                                             Send Invite
                                         </button>
                                     )}
+                                    <button
+                                        onClick={() => setMessageModalTarget({ id: emp.id, name: emp.display_name })}
+                                        style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                    >
+                                        💬 Message
+                                    </button>
                                 </div>
                             </div>
                             <button

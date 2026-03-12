@@ -77,3 +77,43 @@ export async function inviteCrewMemberLogin(employeeId: string, email: string) {
         return { error: `Fatal Server Error: ${e.message || "Unknown error during invite process"}` }
     }
 }
+
+export async function sendManagerNote(employeeId: string, authorId: string, content: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) return { error: "Not authenticated" }
+
+    // Enforce Admin role
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (profile?.role !== 'admin') return { error: "Unauthorized" }
+
+    if (!content || !authorId || !employeeId) {
+        return { error: "Missing required fields" }
+    }
+
+    const { data: note, error: noteErr } = await supabase
+        .from('manager_notes')
+        .insert([{ author_id: authorId, content, priority: 'normal' }])
+        .select('id')
+        .single()
+
+    if (noteErr || !note) {
+        console.error("Failed to create note:", noteErr)
+        return { error: "Failed to create note." }
+    }
+
+    const { error: readErr } = await supabase
+        .from('manager_note_reads')
+        .insert([{ note_id: note.id, employee_id: employeeId }])
+
+    if (readErr) {
+        console.error("Failed to link note to employee:", readErr)
+        return { error: "Note created but failed to link to employee." }
+    }
+
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath(`/dashboard/employees`)
+    revalidatePath(`/dashboard/employees/${employeeId}`)
+    return { success: true }
+}
