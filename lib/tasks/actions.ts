@@ -80,7 +80,9 @@ export async function createSchedulerInstance(
     dateStr: string,
     title: string,
     templateId?: string,
-    displayMode: 'full' | 'single' | 'section' = 'full'
+    displayMode: 'full' | 'single' | 'section' = 'full',
+    targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
+    targetId?: string
 ) {
     const supabase = await createClient()
 
@@ -115,10 +117,20 @@ export async function createSchedulerInstance(
         .select('id')
         .single()
 
-    if (instanceErr) throw new Error("Failed to schedule instance")
+    if (instanceErr || !instance) throw new Error("Failed to schedule instance")
+
+    // Insert Target
+    if (targetType === 'employee' && targetId) {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+    } else if (targetType === 'role' && targetId) {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+    } else if (targetType === 'all_crew') {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+    }
 
     revalidatePath('/dashboard/tasks/scheduler')
     revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard/tasks/admin')
 
     return { success: true, instanceId: instance.id }
 }

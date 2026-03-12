@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { SchedulerModal } from './SchedulerModal'
+import { TaskEditorModal, TaskEditorData } from '@/components/tasks/TaskEditorModal'
 
 export function AddTaskButton({
     dateStr,
-    templates,
+    editorData,
     label = "Schedule Instance",
     className = "cta primary",
     style = {}
 }: {
     dateStr: string,
-    templates: { id: string, title: string }[],
+    editorData: TaskEditorData,
     label?: string,
     className?: string,
     style?: React.CSSProperties
@@ -27,11 +27,11 @@ export function AddTaskButton({
             >
                 {label}
             </button>
-            <SchedulerModal
+            <TaskEditorModal
                 isOpen={isOpen}
                 onClose={() => setIsOpen(false)}
-                selectedDateStr={dateStr}
-                templates={templates}
+                defaultDateStr={dateStr}
+                editorData={editorData}
             />
         </>
     )

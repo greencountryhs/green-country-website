@@ -41,6 +41,8 @@ export type WeekAssignmentInstance = {
         targetType: "employee" | "all_crew" | "role"
         employeeId: string | null
         roleId: string | null
+        employeeName: string | null
+        roleName: string | null
         createdAt: string
     }>
     logs: Array<{
@@ -73,6 +75,8 @@ type TaskAssignmentInstanceRow = {
         target_type: "employee" | "all_crew" | "role"
         employee_id: string | null
         role_id: string | null
+        employees: any
+        roles: any
         created_at: string
     }>
     | null
@@ -113,7 +117,9 @@ export async function getWeekAssignmentInstances(
                 target_type,
                 employee_id,
                 role_id,
-                created_at
+                created_at,
+                employees ( display_name ),
+                roles ( name )
             ),
             task_item_logs (
                 id,
@@ -157,6 +163,8 @@ export async function getWeekAssignmentInstances(
                 targetType: target.target_type,
                 employeeId: target.employee_id,
                 roleId: target.role_id,
+                employeeName: (target.employees as any)?.display_name || null,
+                roleName: (target.roles as any)?.name || null,
                 createdAt: target.created_at,
             })),
             logs: logs.map((log) => ({
@@ -297,5 +305,65 @@ export async function getTaskInstanceItems(instanceId: string) {
             section: null,
             completed: isCompleted
         }]
+    }
+}
+
+export async function getTaskEditorData() {
+    const supabase = await createClient()
+
+    // 1. Templates with preview data
+    const { data: rawTemplates } = await supabase
+        .from('task_templates')
+        .select(`
+            id, 
+            title, 
+            default_display_mode,
+            task_template_sections (
+                task_template_items (
+                    content,
+                    sort_order
+                )
+            )
+        `)
+        .order('title')
+
+    const templates = (rawTemplates || []).map((t: any) => {
+        let allItems: any[] = []
+        if (t.task_template_sections) {
+            t.task_template_sections.forEach((sec: any) => {
+                if (sec.task_template_items) {
+                    allItems.push(...sec.task_template_items)
+                }
+            })
+        }
+        allItems.sort((a, b) => a.sort_order - b.sort_order)
+        const previewItems = allItems.slice(0, 3).map(i => i.content)
+
+        return {
+            id: t.id,
+            title: t.title,
+            defaultDisplayMode: t.default_display_mode || 'full',
+            itemCount: allItems.length,
+            previewItems
+        }
+    })
+
+    // 2. Employees
+    const { data: employees } = await supabase
+        .from('employees')
+        .select('id, display_name')
+        .eq('active', true)
+        .order('display_name')
+
+    // 3. Roles
+    const { data: roles } = await supabase
+        .from('roles')
+        .select('id, name')
+        .order('name')
+
+    return {
+        templates: templates || [],
+        employees: employees || [],
+        roles: roles || []
     }
 }

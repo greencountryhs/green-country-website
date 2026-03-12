@@ -30,11 +30,11 @@ export function InstanceActions({ instanceId, currentTargets }: { instanceId: st
 
     return (
         <div style={{ position: 'relative', marginTop: '0.5rem' }}>
-            <button onClick={() => setShowPopover(!showPopover)} className="link small" style={{ fontSize: '0.75rem', padding: 0 }}>
-                Manage
+            <button onClick={() => setShowPopover(!showPopover)} className="cta secondary" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'white', color: '#475569', border: '1px solid #cbd5e1' }}>
+                Quick Actions
             </button>
             {showPopover && (
-                <div style={{ position: 'absolute', top: '100%', left: 0, background: 'white', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px', zIndex: 10, width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                <div style={{ position: 'absolute', top: '100%', right: 0, background: 'white', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px', zIndex: 10, width: '200px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                     {reassignMode ? (
                         <form onSubmit={handleReassign} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.75rem' }}>Target Type</label>
@@ -52,10 +52,9 @@ export function InstanceActions({ instanceId, currentTargets }: { instanceId: st
                         </form>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <button onClick={() => handleShift('Pull Forward 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>&larr; Pull Forward 1 Day</button>
-                            <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>Push Back 1 Day &rarr;</button>
-                            <hr style={{ margin: '0.25rem 0', borderColor: 'var(--border)' }} />
-                            <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>Reassign Targets</button>
+                            <button onClick={() => { alert('Edit Task modal integration coming soon!'); setShowPopover(false) }} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>✎ Edit Task</button>
+                            <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>👥 Reassign</button>
+                            <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>📅 Push to Tomorrow</button>
                         </div>
                     )}
                 </div>

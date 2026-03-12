@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
-import { getWeekAssignmentInstances, groupWeekAssignmentInstancesByDate, getTaskTemplates } from '@/lib/tasks'
+import { getWeekAssignmentInstances, groupWeekAssignmentInstancesByDate, getTaskEditorData } from '@/lib/tasks'
 import { InstanceActions } from './SchedulerActions'
 import { AddTaskButton } from './AddTaskButton'
 
@@ -33,7 +33,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
     })
 
     const instances = await getWeekAssignmentInstances(weekStartStr, weekEndDateStr)
-    const templates = await getTaskTemplates()
+    const editorData = await getTaskEditorData()
     const instancesByDate = groupWeekAssignmentInstancesByDate(instances)
 
     return (
@@ -52,7 +52,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                     </form>
                     <AddTaskButton
                         dateStr={weekStartStr}
-                        templates={templates || []}
+                        editorData={editorData}
                         label="Schedule Template..."
                     />
                 </div>
@@ -97,7 +97,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                                 </div>
                                 <AddTaskButton
                                     dateStr={dayStr}
-                                    templates={templates || []}
+                                    editorData={editorData}
                                     label="+"
                                     className=""
                                     style={{
@@ -113,28 +113,39 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                             <div style={{ padding: '0.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto' }}>
                                 {dayInstances.map((inst) => {
                                     const displayTitle = inst.title || 'Unknown'
-                                    const targetsLabels = inst.targets.map(t => {
-                                        if (t.targetType === 'all_crew') return 'All Crew'
-                                        if (t.targetType === 'employee') return 'Emp'
-                                        if (t.targetType === 'role') return 'Role'
-                                        return 'Unknown'
-                                    }).join(', ') || 'Unassigned'
+                                    const rawTarget = inst.targets[0]
+                                    let assignmentLabel = 'Unassigned'
+                                    if (rawTarget) {
+                                        if (rawTarget.targetType === 'all_crew') assignmentLabel = 'All Crew'
+                                        else if (rawTarget.targetType === 'employee') assignmentLabel = rawTarget.employeeName || 'Unknown Employee'
+                                        else if (rawTarget.targetType === 'role') assignmentLabel = rawTarget.roleName || 'Unknown Role'
+                                    }
+
+                                    let typeLabel = 'General Task'
+                                    if (!inst.isOverride) {
+                                        if (inst.displayMode === 'full') typeLabel = 'Static Checklist'
+                                        else if (inst.displayMode === 'single' || inst.displayMode === 'section') typeLabel = 'Interactive Checklist'
+                                        else typeLabel = 'Task'
+                                    }
 
                                     return (
-                                        <div key={inst.id} style={{ background: 'white', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginBottom: '0.25rem' }}>
-                                                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{displayTitle}</div>
-                                                {inst.isOverride && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.2rem', background: '#fef08a', color: '#854d0e', borderRadius: '4px' }}>Custo</span>}
+                                        <div key={inst.id} style={{ background: 'white', padding: '0.6rem', borderRadius: '4px', border: '1px solid var(--border)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.2rem', marginBottom: '0.25rem' }}>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.2 }}>{displayTitle}</div>
+                                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.3rem', background: '#f3f4f6', color: '#475569', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                                                    {typeLabel}
+                                                </span>
                                             </div>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>👥 {targetsLabels}</div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.7rem' }}>
-                                                <span style={{ color: inst.status === 'completed' ? '#166534' : 'var(--muted)' }}>{inst.status}</span>
+                                            <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 500, marginBottom: '0.4rem' }}>
+                                                Assigned to: {assignmentLabel}
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                                                <span style={{ color: inst.status === 'completed' ? '#166534' : 'var(--muted)', textTransform: 'capitalize' }}>Status: {inst.status}</span>
                                                 <span style={{ color: 'var(--muted)' }}>Logs: {inst.completedLogCount}/{inst.logCount}</span>
                                             </div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <span style={{ background: '#f3f4f6', padding: '0.1rem 0.3rem', borderRadius: '2px' }}>{inst.displayMode}</span>
+                                            <div style={{ marginTop: '0.6rem' }}>
+                                                <InstanceActions instanceId={inst.id} currentTargets={inst.targets} />
                                             </div>
-                                            <InstanceActions instanceId={inst.id} currentTargets={inst.targets} />
                                         </div>
                                     )
                                 })}
