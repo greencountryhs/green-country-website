@@ -431,6 +431,89 @@ requireCapability()
 
 All protected routes and server actions must use these helpers.
 
+## Scheduler Architecture Rule
+
+The Weekly Scheduler is responsible for **task placement**, not deep task authoring.
+
+Two separate concepts exist in the task system:
+
+### Task Definition
+Defines what the work is.
+
+Includes:
+
+- title
+- checklist sections
+- checklist items
+- instructions
+- default display mode
+
+Stored in:
+
+task_templates  
+task_template_sections  
+task_template_items  
+
+Task definitions are reusable and should be edited in a **Template Management UI**, not the scheduler.
+
+---
+
+### Task Placement
+Defines when and for whom work occurs.
+
+Includes:
+
+- assignment date
+- crew or role targets
+- ordering within a day
+- status
+- instance tracking
+
+Stored in:
+
+task_assignments  
+task_assignment_instances  
+task_assignment_instance_targets  
+
+The scheduler operates on **placements**, not definitions.
+
+---
+
+### Scheduler Responsibilities
+
+The Weekly Scheduler should support:
+
+- placing tasks on specific days
+- assigning crew members or roles
+- reordering tasks within a day
+- deleting scheduled tasks
+- viewing task details
+
+The scheduler **should not become the primary interface for editing reusable checklist content**.
+
+---
+
+### Template Editing
+
+Reusable checklist content must be edited through a **separate template management interface**.
+
+That interface will eventually allow:
+
+- section creation
+- item creation
+- checklist ordering
+- default display mode selection
+
+This keeps reusable templates stable and prevents accidental edits affecting multiple scheduled tasks.
+
+---
+
+### AI Implementation Rule
+
+AI agents must not merge **template authoring** and **task scheduling** into the same modal or interface unless explicitly instructed.
+
+Scheduler interfaces should remain focused on **placement and execution**, not content authoring.
+
 Scheduling Terminology
 
 Scheduling actions must use clear directional language.
