@@ -1,0 +1,361 @@
+Developer Map
+
+This document helps developers and AI coding agents quickly understand how the system is structured and where to implement changes.
+
+This prevents duplicate logic, architectural drift, and misplaced code.
+
+AI agents must read this file before modifying the codebase.
+
+High-Level System Flow
+
+The application follows this flow:
+
+User Interface (Next.js App Router)
+        ↓
+Server Actions / API Routes
+        ↓
+Authorization Layer (capabilities)
+        ↓
+Domain Logic (lib/)
+        ↓
+Supabase Database (RLS enforced)
+
+Important rule:
+
+Client components must never directly access privileged data.
+
+All protected operations must pass through server-side logic.
+
+Key Application Areas
+Dashboard
+
+Main application area.
+
+Location:
+
+app/dashboard/
+
+Subsections:
+
+dashboard/
+  crew/
+  tasks/
+  tasks/admin/
+  reports/
+Crew Workspace
+
+Location:
+
+app/dashboard/crew/
+
+Purpose:
+
+Crew members interact with:
+
+today's tasks
+
+personal notes
+
+manager inbox
+
+project overview
+
+Crew members should also be able to access time tracking from this screen.
+
+Navigation must always allow returning to the time manager.
+
+Time Tracking System
+
+Primary table:
+
+time_entries
+
+Clock logic is already implemented and working.
+
+Important rule:
+
+Do not redesign the time tracking system.
+
+Reports read from this table.
+
+Task Engine
+
+The task engine has three structural layers.
+
+Templates
+
+Reusable checklist definitions.
+
+Tables:
+
+task_templates
+task_template_sections
+task_template_items
+
+Templates define structure but do not represent real work.
+
+Assignments
+
+Scheduled tasks.
+
+Table:
+
+task_assignments
+
+Assignments define:
+
+date
+
+template reference
+
+title
+
+display mode
+
+Instances
+
+Actual execution records.
+
+Tables:
+
+task_assignment_instances
+task_assignment_instance_targets
+task_item_logs
+
+Instances represent tasks that exist on a specific day.
+
+Ad-Hoc Tasks
+
+Custom tasks create a simplified parent structure:
+
+task_assignments
+task_assignment_instances
+task_assignment_instance_targets
+
+The instance cannot exist without a parent assignment.
+
+Task Scheduler
+
+Location:
+
+app/dashboard/tasks/scheduler
+
+Purpose:
+
+Managers schedule work across the week.
+
+Features:
+
+daily columns
+
+task cards
+
+drawer view
+
+quick actions
+
+Upcoming features:
+
+delete task
+
+reorder tasks
+
+edit task
+
+template scheduling
+
+Today Board
+
+Location:
+
+app/dashboard/tasks/
+
+Purpose:
+
+Show tasks scheduled for the current day.
+
+This must include:
+
+template tasks
+
+ad-hoc tasks
+
+If tasks exist in the scheduler but not here, the query is incorrect.
+
+Task Drawer
+
+Location:
+
+components/tasks/
+
+The drawer displays:
+
+task details
+
+targets
+
+quick actions
+
+The drawer uses React Portal mounting to avoid layout clipping.
+
+Notes System
+
+Tables:
+
+employee_notes
+manager_notes
+manager_note_reads
+project_notes
+
+Usage:
+
+Employee notes → private notes
+Manager notes → crew communication
+Project notes → project discussion
+
+Permissions System
+
+Authorization uses capabilities, not role checks.
+
+Structure:
+
+employee_roles
+role_capabilities
+capabilities
+
+Helpers exist in:
+
+lib/auth/
+
+Example:
+
+requireCapability("manage_tasks")
+
+Avoid checking:
+
+profiles.role === "admin"
+Domain Logic Location
+
+All domain logic should live in:
+
+lib/
+
+Structure:
+
+lib/
+  auth/
+  notes/
+  tasks/
+  payroll/
+  projects/
+
+Server actions should call these helpers instead of embedding SQL directly.
+
+Supabase Usage Rules
+
+All database access must respect Row Level Security.
+
+Never disable RLS.
+
+Service role keys must never appear in client code.
+
+Server-only access should use:
+
+createAdminClient()
+
+Client code should use the public client.
+
+Migrations
+
+All schema changes must use ordered migrations.
+
+Location:
+
+supabase/migrations/
+
+Example naming:
+
+010_task_assignments_rls_fix.sql
+011_task_delete_support.sql
+
+Never modify an existing migration after it has been applied.
+
+Environment Variables
+
+Local development uses:
+
+.env.local
+
+Common variables:
+
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+
+The service role key must remain server-side only.
+
+Deployment
+
+Production runs on:
+
+Vercel
+
+Environment variables must be configured in Vercel settings.
+
+After changes to env variables, redeploy the project.
+
+Current Development Priorities
+
+Active priorities:
+
+task deletion
+
+crew workspace navigation to time manager
+
+task reordering
+
+today board integration
+
+manager notes authorization
+
+checklist progression improvements
+
+Do not start large template systems yet.
+
+Known Problem Areas
+
+The following areas are incomplete:
+
+task edit modal
+
+task deletion
+
+Today Board queries
+
+crew workspace navigation
+
+personal notes visibility
+
+Treat these as known issues.
+
+AI Coding Behavior
+
+AI tools must:
+
+read AI_CONTEXT.md
+
+read DEVELOPER_MAP.md
+
+inspect relevant code
+
+propose minimal changes
+
+avoid rewriting working systems
+
+When uncertain, ask for clarification.
+
+Why This File Exists
+
+Large AI coding agents often fail because they cannot understand where code belongs.
+
+This document provides a mental map of the system so changes remain consistent.
