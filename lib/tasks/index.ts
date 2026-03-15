@@ -262,8 +262,15 @@ export async function getTaskInstanceItems(instanceId: string) {
 
     const logs = instance.task_item_logs || []
 
-    // Supabase returns a single object (not array) for a to-one join via .single()
-    const taskAssignment = instance.task_assignments as { task_template_id: string | null } | null
+    // Supabase may return either a single object or an array for this join
+    // depending on the generated types in use. Normalise to a single object safely.
+    const rawAssignment = instance.task_assignments as
+        | { task_template_id: string | null }
+        | Array<{ task_template_id: string | null }>
+        | null
+    const taskAssignment = Array.isArray(rawAssignment)
+        ? (rawAssignment[0] ?? null)
+        : rawAssignment
     const templateId = taskAssignment?.task_template_id ?? null
 
     if (templateId) {
