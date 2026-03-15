@@ -8,29 +8,52 @@ import { InstanceActions } from './SchedulerActions'
 import { AddTaskButton } from './AddTaskButton'
 import { TaskCardWithDrawer } from './TaskCardWithDrawer'
 
+/**
+ * Parse a YYYY-MM-DD string as a local date (not UTC).
+ * new Date('2025-07-14') parses as UTC midnight, which shifts the day
+ * in negative-offset timezones. This avoids that bug.
+ */
+function parseDateLocal(dateStr: string): Date {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    return new Date(year, month - 1, day)
+}
+
+/**
+ * Format a local Date to YYYY-MM-DD without UTC conversion.
+ */
+function formatDateLocal(date: Date): string {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
 export default async function WeekSchedulerPage({ searchParams }: { searchParams: { date?: string } }) {
     const isAuthorized = await requireCapability(CAPABILITIES.MANAGE_TASKS)
     if (!isAuthorized) {
         redirect('/dashboard')
     }
 
-    // Default to nearest Monday if no date provided
+    // Default to nearest Monday using local date math (no UTC shifting)
     const today = new Date()
-    const currentDay = today.getDay()
-    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1) // adjust when day is sunday
-    const defaultMonday = new Date(today.setDate(diff))
+    const todayStr = formatDateLocal(today)
+    const currentDay = today.getDay() // 0 = Sunday
+    const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1
+    const defaultMonday = new Date(today)
+    defaultMonday.setDate(today.getDate() - daysFromMonday)
 
-    const weekStartStr = searchParams.date || defaultMonday.toISOString().split('T')[0]
-    const weekStart = new Date(weekStartStr)
-    const weekEndDate = new Date(weekStartStr)
+    const weekStartStr = searchParams.date || formatDateLocal(defaultMonday)
+    const weekStart = parseDateLocal(weekStartStr)
+
+    const weekEndDate = new Date(weekStart)
     weekEndDate.setDate(weekStart.getDate() + 6)
-    const weekEndDateStr = weekEndDate.toISOString().split('T')[0]
+    const weekEndDateStr = formatDateLocal(weekEndDate)
 
-    // Generate the 7 day headers
+    // Generate the 7 day date strings using local date math
     const days = Array.from({ length: 7 }).map((_, i) => {
         const d = new Date(weekStart)
         d.setDate(weekStart.getDate() + i)
-        return d.toISOString().split('T')[0]
+        return formatDateLocal(d)
     })
 
     const instances = await getWeekAssignmentInstances(weekStartStr, weekEndDateStr)
@@ -66,8 +89,9 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
             {/* WEEKLY GRID */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1rem', minHeight: '60vh' }}>
                 {days.map(dayStr => {
-                    const dayDate = new Date(dayStr)
-                    const isToday = dayStr === new Date().toISOString().split('T')[0]
+                    // Compare date strings directly — no UTC conversion needed
+                    const isToday = dayStr === todayStr
+                    const dayDate = parseDateLocal(dayStr)
                     const dayInstances = instancesByDate[dayStr] || []
 
                     return (
@@ -81,7 +105,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                         }}>
                             <div style={{
                                 padding: '0.75rem',
-                                background: isToday ? '#1e40af' : '#e2e8f0', // High contrast dark blue for today
+                                background: isToday ? '#1e40af' : '#e2e8f0',
                                 color: isToday ? '#ffffff' : 'inherit',
                                 borderBottom: '1px solid var(--border)',
                                 display: 'flex',
@@ -130,12 +154,12 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                                     }
 
                                     return (
-                                        <TaskCardWithDrawer 
-                                            key={inst.id} 
-                                            inst={inst} 
-                                            displayTitle={displayTitle} 
-                                            typeLabel={typeLabel} 
-                                            assignmentLabel={assignmentLabel} 
+                                        <TaskCardWithDrawer
+                                            key={inst.id}
+                                            inst={inst}
+                                            displayTitle={displayTitle}
+                                            typeLabel={typeLabel}
+                                            assignmentLabel={assignmentLabel}
                                         />
                                     )
                                 })}

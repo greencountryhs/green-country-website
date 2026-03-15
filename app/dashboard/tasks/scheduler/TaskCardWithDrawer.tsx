@@ -21,9 +21,13 @@ export function TaskCardWithDrawer({
 
     useEffect(() => {
         setMounted(true)
+        // Close drawer if component unmounts (e.g. parent re-render removes it)
+        return () => {
+            setIsOpen(false)
+        }
     }, [])
 
-    // Escape listener
+    // Escape key listener
     useEffect(() => {
         if (!isOpen) return
         
@@ -61,7 +65,7 @@ export function TaskCardWithDrawer({
                     padding-top: 0.3rem;
                     text-align: right;
                     transition: color 0.2s ease;
-                    pointer-events: none; /* Let the card catch the click */
+                    pointer-events: none;
                 }
                 .task-card-hover:hover .task-card-cue {
                     color: #2563eb;
@@ -132,7 +136,7 @@ export function TaskCardWithDrawer({
                     {/* RIGHT DRAWER */}
                     <div 
                         ref={drawerRef}
-                        onClick={(e) => e.stopPropagation()} /* Prevent clicks inside drawer from bubbling to backdrop */
+                        onClick={(e) => e.stopPropagation()}
                         style={{
                             position: 'fixed',
                             top: 0,
@@ -195,17 +199,6 @@ export function TaskCardWithDrawer({
                                 <p style={{ margin: '0 0 0.5rem 0' }}><strong>Date:</strong> {new Date(inst.assignmentDate).toLocaleDateString()}</p>
                                 <p style={{ margin: '0 0 0.5rem 0' }}><strong>Items Logged:</strong> {inst.completedLogCount} of {inst.logCount}</p>
                             </div>
-                            
-                            {inst.notes && inst.notes.length > 0 && (
-                                <div style={{ marginTop: '1rem' }}>
-                                    <strong style={{ fontSize: '0.9rem' }}>Notes:</strong>
-                                    <ul style={{ paddingLeft: '1.2rem', margin: '0.5rem 0', fontSize: '0.9rem', color: 'var(--muted)' }}>
-                                        {inst.notes.map((n: any, i: number) => (
-                                            <li key={i}>{n}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
                         </div>
 
                         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>

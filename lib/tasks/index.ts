@@ -163,8 +163,9 @@ export async function getWeekAssignmentInstances(
                 targetType: target.target_type,
                 employeeId: target.employee_id,
                 roleId: target.role_id,
-                employeeName: (target.employees as any)?.display_name || null,
-                roleName: (target.roles as any)?.label || null,
+                employeeName: (target.employees as any)?.display_name ?? null,
+                // Use `label` consistently — matches the DB column and the roles join above
+                roleName: (target.roles as any)?.label ?? null,
                 createdAt: target.created_at,
             })),
             logs: logs.map((log) => ({
@@ -261,9 +262,10 @@ export async function getTaskInstanceItems(instanceId: string) {
     if (!instance) return []
 
     const logs = instance.task_item_logs || []
-    const templateId = Array.isArray(instance.task_assignments) 
-        ? instance.task_assignments[0]?.task_template_id 
-        : (instance.task_assignments as any)?.task_template_id
+
+    // Supabase returns a single object (not array) for a to-one join via .single()
+    const taskAssignment = instance.task_assignments as { task_template_id: string | null } | null
+    const templateId = taskAssignment?.task_template_id ?? null
 
     if (templateId) {
         const { data: sections } = await supabase
@@ -336,8 +338,8 @@ export async function getTaskEditorData() {
                 }
             })
         }
-        allItems.sort((a, b) => a.sort_order - b.sort_order)
-        const previewItems = allItems.slice(0, 3).map(i => i.content)
+        allItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
+        const previewItems = allItems.slice(0, 3).map((i: any) => i.content)
 
         return {
             id: t.id,
@@ -355,7 +357,7 @@ export async function getTaskEditorData() {
         .eq('active', true)
         .order('display_name')
 
-    // 3. Roles
+    // 3. Roles — keep `label` as the field name to match the DB column consistently
     const { data: roles } = await supabase
         .from('roles')
         .select('id, label')
@@ -363,7 +365,8 @@ export async function getTaskEditorData() {
 
     return {
         templates: templates || [],
-        employees: employees || [],
-        roles: (roles || []).map(r => ({ id: r.id, name: r.label }))
+        employees: (employees || []).map(e => ({ id: e.id, display_name: e.display_name })),
+        // Use `label` here to match the DB column — consumers should use role.label
+        roles: (roles || []).map(r => ({ id: r.id, label: r.label }))
     }
 }

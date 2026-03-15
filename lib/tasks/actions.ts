@@ -24,7 +24,6 @@ export async function logTaskItem(instanceId: string, templateItemId: string | n
 export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
     const supabase = await createClient()
 
-    // Fetch current instance date safely
     const { data: instance, error: fetchErr } = await supabase
         .from('task_assignment_instances')
         .select('assignment_date')
@@ -56,7 +55,7 @@ export async function rescheduleTaskInstance(instanceId: string, direction: Sche
 export async function reassignTaskInstance(instanceId: string, targetType: string, targetId?: string) {
     const supabase = await createClient()
 
-    // Simplest approach: wipe targets for this instance and recreate
+    // Wipe existing targets for this instance
     const { error: wipeErr } = await supabase
         .from('task_assignment_instance_targets')
         .delete()
@@ -64,12 +63,22 @@ export async function reassignTaskInstance(instanceId: string, targetType: strin
 
     if (wipeErr) throw new Error("Failed to clear old targets")
 
+    // Insert new target with error checking
     if (targetType === 'employee' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instanceId, target_type: 'employee', employee_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'employee', employee_id: targetId }])
+        if (error) throw new Error("Failed to assign employee target: " + error.message)
     } else if (targetType === 'role' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instanceId, target_type: 'role', role_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'role', role_id: targetId }])
+        if (error) throw new Error("Failed to assign role target: " + error.message)
     } else if (targetType === 'all_crew') {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instanceId, target_type: 'all_crew' }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'all_crew' }])
+        if (error) throw new Error("Failed to assign all_crew target: " + error.message)
     }
 
     revalidatePath('/dashboard/tasks/scheduler')
@@ -87,8 +96,6 @@ export async function createCustomTaskInstance(
     if (!dateStr) throw new Error("Assignment date is required.")
     if (targetType === 'employee' && !targetId) throw new Error("Employee target requires an employee ID.")
     if (targetType === 'role' && !targetId) throw new Error("Role target requires a role ID.")
-    
-    // all_crew doesn't need targetId, so that's fine
 
     const supabase = await createClient()
 
@@ -122,13 +129,22 @@ export async function createCustomTaskInstance(
 
     if (instanceErr || !instance) throw new Error("Failed to schedule custom task instance: " + instanceErr?.message)
 
-    // 3. Create the targets
+    // 3. Create the targets with error checking
     if (targetType === 'employee' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+        if (error) throw new Error("Failed to assign employee target: " + error.message)
     } else if (targetType === 'role' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+        if (error) throw new Error("Failed to assign role target: " + error.message)
     } else if (targetType === 'all_crew') {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+        if (error) throw new Error("Failed to assign all_crew target: " + error.message)
     }
 
     revalidatePath('/dashboard/tasks/scheduler')
@@ -181,13 +197,22 @@ export async function createSchedulerInstance(
 
     if (instanceErr || !instance) throw new Error("Failed to schedule instance: " + instanceErr?.message)
 
-    // Insert Target
+    // Insert target with error checking
     if (targetType === 'employee' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+        if (error) throw new Error("Failed to assign employee target: " + error.message)
     } else if (targetType === 'role' && targetId) {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+        if (error) throw new Error("Failed to assign role target: " + error.message)
     } else if (targetType === 'all_crew') {
-        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+        const { error } = await supabase
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+        if (error) throw new Error("Failed to assign all_crew target: " + error.message)
     }
 
     revalidatePath('/dashboard/tasks/scheduler')
@@ -196,4 +221,3 @@ export async function createSchedulerInstance(
 
     return { success: true, instanceId: instance.id }
 }
-
