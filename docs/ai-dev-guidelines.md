@@ -1,6 +1,6 @@
 AI Development Guidelines
 
-This document provides rules and expectations for AI-assisted development in this repository.
+This document defines rules, architecture, and expectations for AI-assisted development in this repository.
 
 It ensures that automated tools and AI coding agents extend the system without violating architectural decisions or destabilizing the application.
 
@@ -8,7 +8,7 @@ All AI-generated changes must follow these guidelines.
 
 Project Overview
 
-This project is a contractor operations platform designed to manage:
+This project is an internal contractor operations platform designed to manage:
 
 crew members
 
@@ -26,21 +26,125 @@ payroll tracking
 
 future job cost analysis
 
-The system prioritizes operational reliability, modular design, and maintainability.
+The system prioritizes:
 
-Core Architecture
+operational reliability
+
+modular architecture
+
+maintainability
+
+capability-based authorization
+
+This application is intended to run daily business operations for contractor crews.
+
+Technology Stack
 
 The application uses the following stack:
 
 Next.js (App Router)
+
 Supabase Auth
+
 Supabase Postgres
-Row Level Security (RLS)
+
+Supabase Row Level Security (RLS)
+
 Vercel hosting
 
 All database access must respect Supabase RLS.
 
 Authorization decisions must occur server-side.
+
+Current Development Status
+
+The system is partially implemented.
+
+Working Systems
+
+These systems currently function:
+
+authentication
+
+crew member accounts
+
+employee records
+
+clock-in / clock-out
+
+time entry logging
+
+operational reporting
+
+weekly task scheduler UI
+
+ad-hoc custom tasks
+
+task drawer UI
+
+capability-based authorization helpers
+
+Supabase RLS policies for task system
+
+Partially Implemented
+
+These systems exist but are incomplete:
+
+Today Board
+
+Crew workspace task display
+
+Manager inbox
+
+Task editing
+
+Personal notes visibility
+
+Project overview cards
+
+Not Yet Implemented
+
+These systems are planned but not built:
+
+task deletion UI
+
+task reordering
+
+checklist template management
+
+multi-step checklist progression
+
+payroll UI
+
+job costing tools
+
+estimating tools
+
+AI tools should not attempt to fully implement these systems unless specifically requested.
+
+Core Architecture
+
+The system is organized into modular domains.
+
+Domains must remain separated.
+
+Primary domains:
+
+identity / permissions
+
+tasks
+
+notes / communication
+
+time tracking
+
+projects
+
+payroll
+
+reports
+
+Each domain should remain logically independent.
 
 Critical Rules
 
@@ -54,19 +158,19 @@ profiles
 employees
 time_entries
 
-Even though the UI uses "Crew", the database table employees must not be renamed.
+Even though the UI uses Crew, the database table employees must not be renamed.
 
 Do NOT bypass Row Level Security
 
 All data access must respect Supabase RLS policies.
 
-Never disable RLS or create queries that bypass security.
+Never disable RLS.
+
+Never query data using a service role in client-accessible code.
 
 Do NOT implement permission logic using raw roles
 
 Authorization must use capabilities, not role comparisons.
-
-Example:
 
 Correct:
 
@@ -84,11 +188,11 @@ Do NOT combine operational reporting with payroll logic
 
 Reports and payroll are separate modules.
 
-Reports are operational tools for reviewing hours.
+Reports are operational tools.
 
-Payroll manages compensation and payments.
+Payroll manages compensation.
 
-These must remain separate.
+These systems must remain separate.
 
 Do NOT introduce large multi-purpose tables
 
@@ -106,12 +210,9 @@ projects
 
 permissions
 
-Avoid creating tables that mix multiple concerns.
+Avoid tables mixing unrelated concerns.
 
 Approved Database Structure
-
-The following domains exist.
-
 Identity and Permissions
 
 Tables:
@@ -125,7 +226,13 @@ employee_roles
 
 Purpose:
 
-Manage identities, roles, and capability-based access control.
+Manage identities and capability-based access control.
+
+Important:
+
+Capabilities determine authorization.
+
+Roles only group capabilities.
 
 Time Tracking
 
@@ -133,29 +240,87 @@ Table:
 
 time_entries
 
-Tracks clock-in and clock-out events.
+Purpose:
 
-Additional edit fields may exist:
+Records clock-in and clock-out events.
+
+Additional edit fields:
 
 edited_at
 edited_by
 edit_reason
 manual_entry
-Tasks
+
+Clock-in/out behavior is stable and must not be rewritten.
+
+Task System Architecture
+
+The task engine uses three layers.
+
+1. Templates
+
+Reusable task definitions.
 
 Tables:
 
 task_templates
 task_template_sections
 task_template_items
+2. Assignments
+
+Scheduled tasks.
+
+Table:
+
 task_assignments
-task_assignment_targets
+
+Assignments define:
+
+date
+
+template reference
+
+display mode
+
+title override
+
+3. Instances
+
+Actual daily task execution records.
+
+Tables:
+
+task_assignment_instances
+task_assignment_instance_targets
 task_item_logs
 
-Purpose:
+Important rule:
 
-Manage structured daily task execution.
+Ad-hoc tasks create:
 
+task_assignments (parent)
+task_assignment_instances (child)
+task_assignment_instance_targets
+
+AI tools must preserve this relationship.
+
+Task Display Modes
+
+Supported display modes:
+
+full
+section
+single
+
+Meaning:
+
+full → entire checklist visible
+section → one section visible
+single → one item visible
+
+Completion must create a timestamped entry in:
+
+task_item_logs
 Notes and Communication
 
 Tables:
@@ -167,7 +332,11 @@ project_notes
 
 Purpose:
 
-Allow communication and personal note keeping.
+personal notes
+
+manager instructions
+
+project communication
 
 Projects
 
@@ -178,7 +347,7 @@ projects
 
 Purpose:
 
-Track project context and client records.
+Store project and client context.
 
 Payroll
 
@@ -194,7 +363,7 @@ Purpose:
 
 Track compensation and payroll adjustments.
 
-Payroll UI may evolve later.
+Payroll UI is restricted to authorized users.
 
 File Structure
 
@@ -225,9 +394,9 @@ supabase/
 docs/
 Migration Rules
 
-Database changes must be introduced using ordered migration files.
+Database changes must use ordered migration files.
 
-Migration naming format:
+Format:
 
 001_description.sql
 002_description.sql
@@ -242,15 +411,15 @@ Example:
 005_payroll_foundation.sql
 006_time_entry_edits.sql
 
-AI tools must not modify previous migrations after they are applied.
+Rules:
 
-New schema changes must use new migrations.
+never modify applied migrations
+
+create new migrations instead
 
 Capability-Based Authorization
 
-All protected routes or server actions must check capabilities.
-
-Example helper functions exist in:
+Authorization helpers exist in:
 
 lib/auth/
 
@@ -260,7 +429,7 @@ getUserCapabilities()
 hasCapability()
 requireCapability()
 
-Authorization checks should occur on the server.
+All protected routes and server actions must use these helpers.
 
 Scheduling Terminology
 
@@ -273,12 +442,11 @@ Push Back X Days
 Pull Forward 1 Day
 Pull Forward X Days
 
-Avoid ambiguous words such as:
+Avoid ambiguous terms:
 
 move
 advance
 forward
-
 UI Terminology
 
 User-facing language must use:
@@ -290,98 +458,74 @@ Manager
 
 The term Employee should not appear in the UI.
 
-Task Engine Rules
+Current Development Priorities
 
-The task system supports three display modes:
+AI tools should focus on the following tasks before building new systems.
 
-full
-section
-single
+Priority order:
 
-Meaning:
+Task deletion
 
-full → entire checklist visible
-section → one section at a time
-single → one item at a time
+Crew workspace navigation to clock-in / clock-out
 
-Completion must create a timestamped entry in task_item_logs.
+Task reordering
 
-Reports Module Rules
+Today Board integration
 
-Reports are operational tools only.
+Manager note authorization fix
 
-Reports can:
+Checklist progression improvements
 
-show hours by pay period
+AI tools should not begin major template system work yet.
 
-show recent time entries
+Known Issues
 
-identify missing clock-outs
+Known issues currently exist:
 
-show weekly crew totals
+task editing modal not implemented
 
-Reports can allow administrators to:
+Today Board not displaying scheduled tasks
 
-edit clock-in times
+crew workspace lacks clear navigation to time manager
 
-edit clock-out times
+personal notes save but may not display
 
-add correction notes
+manager notes require admin employee profile linking
 
-create manual time entries
-
-Reports must not handle:
-
-payroll payouts
-
-compensation calculations
-
-financial balances
-
-Payroll Module Rules
-
-Payroll handles:
-
-payment tracking
-
-compensation adjustments
-
-holding balances
-
-Payroll UI is restricted to authorized users.
+AI tools should treat these as known defects rather than redesigning the system.
 
 AI Implementation Behavior
 
-When implementing new features, AI tools must:
+When implementing new features AI tools must:
 
-Check existing architecture documentation
+read this document first
 
-Extend the correct domain module
+check architecture documentation
 
-Respect capability-based authorization
+extend existing modules
 
-Preserve existing working systems
+respect capability-based authorization
 
-Use migrations for database changes
+preserve working systems
 
-Avoid architectural shortcuts
+use migrations for database changes
+
+avoid architectural shortcuts
 
 Documentation Maintenance
 
-When AI tools introduce major features:
-
-Update:
+When major features are introduced update:
 
 docs/architecture.md
 docs/roadmap.md
 docs/build-log.md
 
-This keeps documentation aligned with the actual system.
+Documentation must reflect the real system.
 
 AI Safety Principle
 
-The highest priority is maintaining system stability.
+System stability takes priority over new features.
 
-If a proposed change conflicts with the architecture:
+If a proposed change conflicts with architecture:
 
-The AI tool must ask for clarification instead of implementing the change automatically.
+The AI must ask for clarification instead of implementing automatically.
