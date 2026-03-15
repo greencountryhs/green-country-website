@@ -1,5 +1,7 @@
 AI Development Guidelines
 
+AI agents must read docs/AI_CONTEXT.md and docs/DEVELOPER_MAP.md before proposing code changes.
+
 This document defines rules, architecture, and expectations for AI-assisted development in this repository.
 
 It ensures that automated tools and AI coding agents extend the system without violating architectural decisions or destabilizing the application.

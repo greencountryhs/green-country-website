@@ -6,6 +6,34 @@ This prevents duplicate logic, architectural drift, and misplaced code.
 
 AI agents must read this file before modifying the codebase.
 
+Scheduler Architecture Rule
+
+The Weekly Scheduler manages scheduled task placements, not deep task-definition authoring.
+
+Use scheduler UI for:
+
+scheduling
+
+target assignment
+
+ordering
+
+deletion
+
+viewing task details
+
+Use separate template-management UI for:
+
+creating reusable templates
+
+editing sections/items
+
+reordering checklist content
+
+changing default display modes
+
+AI agents must not merge template authoring and scheduler placement into one large modal unless explicitly requested.
+
 High-Level System Flow
 
 The application follows this flow:
