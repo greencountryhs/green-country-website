@@ -1,0 +1,242 @@
+Known Issues
+
+This document tracks known incomplete features, bugs, and temporary limitations in the system.
+
+AI agents must read this file before proposing fixes or architecture changes.
+
+Items listed here are intentional known gaps and should not trigger architectural redesign.
+
+Task System
+Task Editing Modal Not Implemented
+
+Clicking Edit Task currently shows a placeholder message:
+
+edit task modal integration coming soon
+
+This is expected behavior for now.
+
+Editing tasks is intentionally deferred until after:
+
+task deletion
+
+task reordering
+
+scheduler stabilization
+
+AI tools should not implement a full edit modal unless requested.
+
+Task Deletion Not Yet Implemented
+
+Managers currently cannot delete tasks from the scheduler.
+
+Planned behavior:
+
+delete action from scheduler task drawer
+
+confirmation dialog
+
+deletion of:
+
+task_assignment_instance_targets
+
+task_assignment_instances
+
+task_assignments (when appropriate)
+
+This is a current development priority.
+
+Task Reordering Not Implemented
+
+Managers currently cannot rearrange tasks within a day column.
+
+Planned behavior (initial version):
+
+Move Up
+
+Move Down
+
+Full drag-and-drop may be implemented later.
+
+This is a current development priority.
+
+Today Board Does Not Display All Scheduled Tasks
+
+Tasks scheduled in the Weekly Scheduler may not appear on the Today Board.
+
+Likely cause:
+
+The Today Board query does not yet include ad-hoc tasks created via the custom task flow.
+
+This is a known integration gap.
+
+AI tools should fix the query rather than redesigning the task system.
+
+Crew Workspace
+Crew Workspace Navigation Gap
+
+Crew members can become trapped in the Crew Workspace because there is no clear path back to:
+
+clock-in
+
+clock-out
+
+time manager
+
+Planned fix:
+
+Add a visible button such as:
+
+Clock In / Out
+Time Manager
+
+This should appear in the Crew Workspace header.
+
+This is a current development priority.
+
+Today's Tasks Section Not Integrated
+
+Crew Workspace contains a Today's Tasks section that currently shows:
+
+coming soon
+
+This section should eventually display:
+
+tasks scheduled for today
+
+assigned to that crew member
+
+The integration has not yet been implemented.
+
+Notes System
+Personal Notes Visibility Bug
+
+Crew members can create personal notes.
+
+However:
+
+notes appear to save
+
+UI may still show "No personal notes yet"
+
+Possible causes:
+
+read query mismatch
+
+incorrect filter
+
+UI refresh issue
+
+This is a minor bug and not a critical system issue.
+
+AI agents should only address this if the fix is trivial.
+
+Manager Notes Authorization
+Admin Account Not Linked to Employee Record
+
+When attempting to send manager notes, the system may display:
+
+Your admin account is not linked to an employee record.
+
+The UI provides a button to create the admin employee record.
+
+Current issue:
+
+The action fails due to a role check:
+
+if (profile?.role !== 'admin') throw new Error("Unauthorized")
+
+This is inconsistent with the capability-based permission system.
+
+This should eventually be updated to use capability checks rather than raw role checks.
+
+Scheduler UI
+Drawer Interaction Was Recently Refactored
+
+Scheduler cards now open a right-side drawer implemented via React Portal.
+
+This prevents clipping issues caused by grid overflow.
+
+If the drawer fails to appear, check:
+
+portal mounting
+
+z-index
+
+event propagation
+
+Do not redesign the scheduler layout unless necessary.
+
+Template System
+
+The full Checklist Template Management UI has not yet been implemented.
+
+Planned features include:
+
+template editor
+
+template scheduling
+
+section management
+
+item reordering
+
+display mode selection
+
+AI agents should not attempt to implement the full template system without explicit instruction.
+
+Payroll System
+
+Payroll database tables exist but the Payroll UI has not been implemented.
+
+Payroll features are intentionally deferred until later phases.
+
+Operational Status
+
+Despite these known gaps, the system currently supports:
+
+crew accounts
+
+clock-in / clock-out
+
+time entry reporting
+
+weekly task scheduling
+
+ad-hoc task creation
+
+capability-based authorization
+
+Supabase RLS protection
+
+The current development focus is stabilizing the task workflow, not expanding the system.
+
+AI Development Rule
+
+If an AI agent encounters any behavior described in this file, it should treat it as a known issue rather than assuming the system is broken.
+
+Architectural redesign should not be proposed unless specifically requested.
+
+Recommended AI Workflow
+
+Before making changes, AI agents should read:
+
+docs/AI_CONTEXT.md
+docs/DEVELOPER_MAP.md
+docs/roadmap.md
+docs/KNOWN_ISSUES.md
+
+These files define the architecture, system state, and development priorities.
+
+Final note
+
+You now have a very strong AI development environment.
+
+Your documentation stack is now:
+
+docs/
+AI_CONTEXT.md
+DEVELOPER_MAP.md
+roadmap.md
+KNOWN_ISSUES.md
+architecture.md
+build-log.md
