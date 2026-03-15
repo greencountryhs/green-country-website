@@ -222,8 +222,8 @@ export async function getTodaysTasks(employeeId: string) {
     // JS filter to ensure only relevant tasks show up
     const filtered = (data || []).filter((inst: any) => {
         const targets = inst.task_assignment_instance_targets || []
-        return targets.some((t: any) => 
-            t.target_type === 'all_crew' || 
+        return targets.some((t: any) =>
+            t.target_type === 'all_crew' ||
             (t.target_type === 'employee' && t.employee_id === employeeId) ||
             (t.target_type === 'role' && roleIds.includes(t.role_id))
         )
@@ -262,15 +262,13 @@ export async function getTaskInstanceItems(instanceId: string) {
 
     const logs = instance.task_item_logs || []
 
-    // Supabase may return either a single object or an array for this join
-    // depending on the generated types in use. Normalise to a single object safely.
-    const rawAssignment = instance.task_assignments as
-        | { task_template_id: string | null }
-        | Array<{ task_template_id: string | null }>
-        | null
-    const taskAssignment = Array.isArray(rawAssignment)
-        ? (rawAssignment[0] ?? null)
-        : rawAssignment
+    // Normalise task_assignments: Supabase may return an array or a single object
+    // depending on the generated types in use. Support both safely.
+    type TaskAssignmentShape = { task_template_id: string | null }
+    const raw = instance.task_assignments as TaskAssignmentShape | TaskAssignmentShape[] | null
+    const taskAssignment: TaskAssignmentShape | null = Array.isArray(raw)
+        ? (raw[0] ?? null)
+        : raw
     const templateId = taskAssignment?.task_template_id ?? null
 
     if (templateId) {
