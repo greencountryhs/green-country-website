@@ -110,7 +110,7 @@ export async function createCustomTaskInstance(
         }])
         .select('id')
         .single()
-        
+
     if (assignErr || !assignment) throw new Error("Failed to create ad hoc parent assignment: " + assignErr?.message)
 
     // 2. Create the child instance

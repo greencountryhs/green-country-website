@@ -164,7 +164,6 @@ export async function getWeekAssignmentInstances(
                 employeeId: target.employee_id,
                 roleId: target.role_id,
                 employeeName: (target.employees as any)?.display_name ?? null,
-                // Use `label` consistently — matches the DB column and the roles join above
                 roleName: (target.roles as any)?.label ?? null,
                 createdAt: target.created_at,
             })),
@@ -357,7 +356,7 @@ export async function getTaskEditorData() {
         .eq('active', true)
         .order('display_name')
 
-    // 3. Roles — keep `label` as the field name to match the DB column consistently
+    // 3. Roles
     const { data: roles } = await supabase
         .from('roles')
         .select('id, label')
@@ -366,7 +365,6 @@ export async function getTaskEditorData() {
     return {
         templates: templates || [],
         employees: (employees || []).map(e => ({ id: e.id, display_name: e.display_name })),
-        // Use `label` here to match the DB column — consumers should use role.label
-        roles: (roles || []).map(r => ({ id: r.id, label: r.label }))
+        roles: (roles || []).map(r => ({ id: r.id, name: r.label }))
     }
 }
