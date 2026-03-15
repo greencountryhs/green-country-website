@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
-import { inviteCrewMemberLogin, sendManagerNote } from './actions';
+import { inviteCrewMemberLogin, sendManagerNote, createAdminEmployeeRecord } from './actions';
 
 type Employee = {
     id: string;
@@ -225,7 +225,10 @@ export default function EmployeesPage() {
                                 </button>
                             </form>
                         ) : (
-                            <p style={{ color: 'red' }}>Your Admin account is not linked to an employee record! You cannot send notes until you link your login to an employee in Crew Access.</p>
+                            <form action={createAdminEmployeeRecord} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#fef2f2', padding: '1rem', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                                <p style={{ color: '#991b1b', fontSize: '0.85rem', margin: 0 }}>Your Admin account is not linked to an employee record so you cannot author notes.</p>
+                                <button type="submit" className="cta secondary" style={{ background: 'white' }}>Fix Issue (Create Admin Profile)</button>
+                            </form>
                         )}
                     </div>
                 </div>

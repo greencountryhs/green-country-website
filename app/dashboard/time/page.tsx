@@ -220,20 +220,27 @@ export default function TimeTrackingPage() {
                 )}
             </div>
 
-            <p className="section-lead" style={{ marginBottom: '2rem' }}>
-                Select an active crew member to clock in or out.
-            </p>
-
             {role === 'admin' && (
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-                    <button onClick={handleStartDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}>
-                        Start Day
-                    </button>
-                    <button onClick={handleEndDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}>
-                        End Day
-                    </button>
+                <div style={{ marginBottom: '2rem' }}>
+                    <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Bulk Actions</p>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                        Use these to quickly clock in all inactive crew, or clock out all active crew at once.
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        <button onClick={handleStartDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}>
+                            Bulk Clock In All
+                        </button>
+                        <button onClick={handleEndDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}>
+                            Bulk Clock Out All
+                        </button>
+                    </div>
                 </div>
             )}
+
+            <div style={{ marginTop: '2rem', borderTop: '2px solid var(--border)', paddingTop: '1.5rem' }}>
+                <p className="section-lead" style={{ marginBottom: '1.5rem' }}>
+                    Individual Actions: Select a crew member below to clock them in or out individually.
+                </p>
 
             {actionMessage && (
                 <div className="callout" style={{ marginBottom: '2rem', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
@@ -252,7 +259,18 @@ export default function TimeTrackingPage() {
                         return (
                             <div key={emp.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ margin: 0, fontSize: '1.4rem' }}>{emp.display_name}</h3>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1.4rem' }}>
+                                            <Link href={`/dashboard/reports?employeeId=${emp.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                                {emp.display_name}
+                                            </Link>
+                                        </h3>
+                                        {isWorking && (
+                                            <Link href={`/dashboard/reports?employeeId=${emp.id}`} className="link small" style={{ fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                                                ✎ Edit
+                                            </Link>
+                                        )}
+                                    </div>
                                     <span className="badge" style={{
                                         background: isWorking ? '#dcfce7' : '#f3f4f6',
                                         color: isWorking ? '#166534' : '#374151',
@@ -294,6 +312,7 @@ export default function TimeTrackingPage() {
                     })}
                 </div>
             )}
+            </div>
         </div>
     );
 }

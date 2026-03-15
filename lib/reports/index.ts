@@ -146,3 +146,23 @@ export async function createManualTimeEntry(employeeId: string, clockIn: string,
     revalidatePath('/dashboard/reports')
     return { error }
 }
+
+export async function deleteTimeEntry(entryId: string, reason?: string) {
+    const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
+    if (!isAuthorized) throw new Error("Unauthorized to delete time entries")
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) throw new Error("Unauthorized")
+
+    // Optionally you'd log the reason to an audit table here.
+    const { error } = await supabase
+        .from('time_entries')
+        .delete()
+        .eq('id', entryId)
+
+    if (error) console.error("Error deleting time entry:", error)
+    revalidatePath('/dashboard/reports')
+    return { error }
+}

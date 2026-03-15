@@ -1,0 +1,17 @@
+{
+  "roles": {
+    "data": [
+      {
+        "id": "b3f58998-ce25-4919-8582-cfeba86f57da",
+        "code": "admin",
+        "label": "Administrator",
+        "created_at": "2026-03-08T05:35:43.970318+00:00"
+      }
+    ],
+    "error": null
+  },
+  "join1": {
+    "data": [],
+    "error": null
+  }
+}

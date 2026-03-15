@@ -1,0 +1,6 @@
+{
+  "code": "23502",
+  "details": "Failing row contains (8a81be76-defd-4c14-8a9b-2ec1c36f34f2, null, 2026-03-12, E2E Employee Task, null, scheduled, 0, t, 2026-03-12 13:18:35.523584+00, 2026-03-12 13:18:35.523584+00, null, null, null).",
+  "hint": null,
+  "message": "null value in column \"task_assignment_id\" of relation \"task_assignment_instances\" violates not-null constraint"
+}

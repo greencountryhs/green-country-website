@@ -1,7 +1,7 @@
 'use client'
 
 import { useFormStatus } from 'react-dom'
-import { correctTimeEntryAction, createManualTimeEntryAction } from './actions'
+import { correctTimeEntryAction, createManualTimeEntryAction, deleteTimeEntryAction } from './actions'
 
 export function EditTimeEntryForm({ entry, defaultClockIn, defaultClockOut }: { entry: any, defaultClockIn: string, defaultClockOut: string }) {
     return (
@@ -21,7 +21,33 @@ export function EditTimeEntryForm({ entry, defaultClockIn, defaultClockOut }: { 
 
                 <SubmitButton text="Save Edit" />
             </form>
+
+            <form 
+                action={deleteTimeEntryAction} 
+                onSubmit={(e) => { 
+                    if(!confirm("Are you sure you want to permanently delete this time entry?")) { 
+                        e.preventDefault() 
+                    } 
+                }} 
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: '#fef2f2', padding: '1rem', borderRadius: '4px', border: '1px solid #fecaca' }}
+            >
+                <input type="hidden" name="entryId" value={entry.id} />
+                <h4 style={{ margin: 0, color: '#dc2626' }}>Delete Entry</h4>
+                <label style={{ fontSize: '0.8rem', color: '#991b1b' }}>Optional Audit Note</label>
+                <input type="text" name="reason" placeholder="Reason for deletion..." />
+                
+                <DeleteSubmitButton />
+            </form>
         </details>
+    )
+}
+
+function DeleteSubmitButton() {
+    const { pending } = useFormStatus()
+    return (
+        <button type="submit" disabled={pending} className="cta" style={{ padding: '0.5rem', background: '#dc2626', color: 'white' }}>
+            {pending ? 'Deleting...' : 'Delete Permanently'}
+        </button>
     )
 }
 

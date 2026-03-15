@@ -117,3 +117,34 @@ export async function sendManagerNote(employeeId: string, authorId: string, cont
     revalidatePath(`/dashboard/employees/${employeeId}`)
     return { success: true }
 }
+
+export async function createAdminEmployeeRecord(formData?: FormData) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+
+    const { data: profile } = await supabase.from('profiles').select('role, display_name').eq('id', user.id).single()
+    if (profile?.role !== 'admin') throw new Error("Unauthorized")
+
+    const adminAuthClient = createAdminClient()
+    
+    // Check if one already exists
+    const { data: existing } = await adminAuthClient.from('employees').select('id').eq('user_id', user.id).single()
+    if (existing) return
+
+    const { error } = await adminAuthClient.from('employees').insert({
+        display_name: profile.display_name || user.email || 'Admin User',
+        user_id: user.id,
+        email: user.email,
+        active: true,
+        pay_rate_cents: 0
+    })
+
+    if (error) {
+        console.error("Failed to create admin employee profile:", error)
+        throw new Error(error.message)
+    }
+
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/', 'layout')
+}

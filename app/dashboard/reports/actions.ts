@@ -1,6 +1,6 @@
 'use server'
 
-import { correctTimeEntry, createManualTimeEntry } from '@/lib/reports'
+import { correctTimeEntry, createManualTimeEntry, deleteTimeEntry } from '@/lib/reports'
 import { revalidatePath } from 'next/cache'
 
 // Parse datetime-local string to ISO ensuring it picks up server local properly,
@@ -31,5 +31,15 @@ export async function createManualTimeEntryAction(formData: FormData) {
     if (!employeeId || !clockIn || !clockOut || !reason) throw new Error("Missing required fields")
 
     await createManualTimeEntry(employeeId, parseLocalTime(clockIn)!, parseLocalTime(clockOut)!, reason)
+    revalidatePath('/dashboard/reports')
+}
+
+export async function deleteTimeEntryAction(formData: FormData) {
+    const entryId = formData.get('entryId') as string
+    const reason = formData.get('reason') as string
+
+    if (!entryId) throw new Error("Missing entryId")
+
+    await deleteTimeEntry(entryId, reason)
     revalidatePath('/dashboard/reports')
 }

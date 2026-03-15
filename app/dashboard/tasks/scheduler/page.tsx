@@ -6,6 +6,7 @@ import { requireCapability } from '@/lib/auth/requireCapability'
 import { getWeekAssignmentInstances, groupWeekAssignmentInstancesByDate, getTaskEditorData } from '@/lib/tasks'
 import { InstanceActions } from './SchedulerActions'
 import { AddTaskButton } from './AddTaskButton'
+import { TaskCardWithDrawer } from './TaskCardWithDrawer'
 
 export default async function WeekSchedulerPage({ searchParams }: { searchParams: { date?: string } }) {
     const isAuthorized = await requireCapability(CAPABILITIES.MANAGE_TASKS)
@@ -72,7 +73,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                     return (
                         <div key={dayStr} style={{
                             background: '#f8fafc',
-                            border: `1px solid ${isToday ? 'var(--primary)' : 'var(--border)'}`,
+                            border: isToday ? '2px solid #1e40af' : '1px solid var(--border)',
                             borderRadius: '8px',
                             display: 'flex',
                             flexDirection: 'column',
@@ -80,8 +81,8 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                         }}>
                             <div style={{
                                 padding: '0.75rem',
-                                background: isToday ? 'var(--primary)' : '#e2e8f0',
-                                color: isToday ? 'white' : 'inherit',
+                                background: isToday ? '#1e40af' : '#e2e8f0', // High contrast dark blue for today
+                                color: isToday ? '#ffffff' : 'inherit',
                                 borderBottom: '1px solid var(--border)',
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -129,24 +130,13 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                                     }
 
                                     return (
-                                        <div key={inst.id} style={{ background: 'white', padding: '0.6rem', borderRadius: '4px', border: '1px solid var(--border)', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.2rem', marginBottom: '0.25rem' }}>
-                                                <div style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.2 }}>{displayTitle}</div>
-                                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.3rem', background: '#f3f4f6', color: '#475569', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                                                    {typeLabel}
-                                                </span>
-                                            </div>
-                                            <div style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 500, marginBottom: '0.4rem' }}>
-                                                Assigned to: {assignmentLabel}
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                                                <span style={{ color: inst.status === 'completed' ? '#166534' : 'var(--muted)', textTransform: 'capitalize' }}>Status: {inst.status}</span>
-                                                <span style={{ color: 'var(--muted)' }}>Logs: {inst.completedLogCount}/{inst.logCount}</span>
-                                            </div>
-                                            <div style={{ marginTop: '0.6rem' }}>
-                                                <InstanceActions instanceId={inst.id} currentTargets={inst.targets} />
-                                            </div>
-                                        </div>
+                                        <TaskCardWithDrawer 
+                                            key={inst.id} 
+                                            inst={inst} 
+                                            displayTitle={displayTitle} 
+                                            typeLabel={typeLabel} 
+                                            assignmentLabel={assignmentLabel} 
+                                        />
                                     )
                                 })}
                             </div>

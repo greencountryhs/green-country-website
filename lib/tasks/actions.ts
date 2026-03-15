@@ -76,6 +76,68 @@ export async function reassignTaskInstance(instanceId: string, targetType: strin
     revalidatePath('/dashboard/tasks')
 }
 
+export async function createCustomTaskInstance(
+    dateStr: string,
+    title: string,
+    displayMode: 'full' | 'single' | 'section' = 'full',
+    targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
+    targetId?: string
+) {
+    if (!title || !title.trim()) throw new Error("Task title is required.")
+    if (!dateStr) throw new Error("Assignment date is required.")
+    if (targetType === 'employee' && !targetId) throw new Error("Employee target requires an employee ID.")
+    if (targetType === 'role' && !targetId) throw new Error("Role target requires a role ID.")
+    
+    // all_crew doesn't need targetId, so that's fine
+
+    const supabase = await createClient()
+
+    // 1. Create the parent ad hoc task assignment (legacy tracking baseline)
+    const { data: assignment, error: assignErr } = await supabase
+        .from('task_assignments')
+        .insert([{
+            task_template_id: null,
+            assignment_date: dateStr,
+            title: title.trim(),
+            display_mode: displayMode
+        }])
+        .select('id')
+        .single()
+        
+    if (assignErr || !assignment) throw new Error("Failed to create ad hoc parent assignment: " + assignErr?.message)
+
+    // 2. Create the child instance
+    const { data: instance, error: instanceErr } = await supabase
+        .from('task_assignment_instances')
+        .insert([{
+            task_assignment_id: assignment.id,
+            assignment_date: dateStr,
+            title: title.trim(),
+            display_mode: displayMode,
+            is_override: true,
+            status: 'scheduled'
+        }])
+        .select('id')
+        .single()
+
+    if (instanceErr || !instance) throw new Error("Failed to schedule custom task instance: " + instanceErr?.message)
+
+    // 3. Create the targets
+    if (targetType === 'employee' && targetId) {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
+    } else if (targetType === 'role' && targetId) {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
+    } else if (targetType === 'all_crew') {
+        await supabase.from('task_assignment_instance_targets').insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
+    }
+
+    revalidatePath('/dashboard/tasks/scheduler')
+    revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard/tasks/admin')
+
+    return { success: true, instanceId: instance.id }
+}
+
 export async function createSchedulerInstance(
     dateStr: string,
     title: string,
@@ -100,7 +162,7 @@ export async function createSchedulerInstance(
             .select('id')
             .single()
 
-        if (legacyErr) throw new Error("Failed to create template tracking baseline")
+        if (legacyErr) throw new Error("Failed to create template tracking baseline: " + legacyErr.message)
         legacyAssignmentId = legacy.id
     }
 
@@ -117,7 +179,7 @@ export async function createSchedulerInstance(
         .select('id')
         .single()
 
-    if (instanceErr || !instance) throw new Error("Failed to schedule instance")
+    if (instanceErr || !instance) throw new Error("Failed to schedule instance: " + instanceErr?.message)
 
     // Insert Target
     if (targetType === 'employee' && targetId) {

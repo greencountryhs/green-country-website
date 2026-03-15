@@ -43,13 +43,13 @@ export default async function DashboardHome() {
             <div className="cards" style={{ maxWidth: '400px', margin: '2rem auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {isAdmin && (
                     <>
-                        <Link href="/dashboard/tasks/admin" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#3b82f6' }}>
+                        <Link href="/dashboard/tasks/admin" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                             Today's Board
                         </Link>
-                        <Link href="/dashboard/tasks/scheduler" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#8b5cf6' }}>
+                        <Link href="/dashboard/tasks/scheduler" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                             Week Scheduler
                         </Link>
-                        <Link href="/dashboard/reports" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#10b981' }}>
+                        <Link href="/dashboard/reports" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                             Operational Reports
                         </Link>
                         <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>

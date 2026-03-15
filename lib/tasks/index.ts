@@ -119,7 +119,7 @@ export async function getWeekAssignmentInstances(
                 role_id,
                 created_at,
                 employees ( display_name ),
-                roles ( name )
+                roles ( label )
             ),
             task_item_logs (
                 id,
@@ -164,7 +164,7 @@ export async function getWeekAssignmentInstances(
                 employeeId: target.employee_id,
                 roleId: target.role_id,
                 employeeName: (target.employees as any)?.display_name || null,
-                roleName: (target.roles as any)?.name || null,
+                roleName: (target.roles as any)?.label || null,
                 createdAt: target.created_at,
             })),
             logs: logs.map((log) => ({
@@ -358,12 +358,12 @@ export async function getTaskEditorData() {
     // 3. Roles
     const { data: roles } = await supabase
         .from('roles')
-        .select('id, name')
-        .order('name')
+        .select('id, label')
+        .order('label')
 
     return {
         templates: templates || [],
         employees: employees || [],
-        roles: roles || []
+        roles: (roles || []).map(r => ({ id: r.id, name: r.label }))
     }
 }
