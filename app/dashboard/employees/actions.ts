@@ -123,7 +123,7 @@ export async function createAdminEmployeeRecord(formData?: FormData) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error("Not authenticated")
 
-    const { data: profile } = await supabase.from('profiles').select('role, display_name').eq('id', user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
     if (profile?.role !== 'admin') throw new Error("Unauthorized")
 
     const adminAuthClient = createAdminClient()
@@ -133,7 +133,7 @@ export async function createAdminEmployeeRecord(formData?: FormData) {
     if (existing) return
 
     const { error } = await adminAuthClient.from('employees').insert({
-        display_name: profile.display_name || user.email || 'Admin User',
+        display_name: profile.full_name || user.email || 'Admin User',
         user_id: user.id,
         email: user.email,
         active: true,

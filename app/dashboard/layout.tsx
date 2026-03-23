@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { MobileSidebarWrapper } from '@/components/dashboard/MobileSidebarWrapper'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
     const supabase = await createClient()
@@ -53,7 +54,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                 zIndex: 10
             }}>
-                <div style={{ fontWeight: 'bold', fontSize: '1.2rem', letterSpacing: '0.5px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '1.2rem', letterSpacing: '0.5px', paddingLeft: '2rem' }}>
                     GC Operations
                 </div>
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.9rem' }}>
@@ -74,15 +75,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 </div>
             </header>
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Sidebar Navigation */}
-                <aside style={{ 
-                    width: '240px', 
-                    backgroundColor: 'white', 
-                    borderRight: '1px solid #e2e8f0', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                }}>
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <MobileSidebarWrapper>
                     <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         <Link href="/dashboard" className="nav-link" style={navLinkStyle}>Dashboard</Link>
                         {isAdmin && <Link href="/dashboard/employees" className="nav-link" style={navLinkStyle}>Crew</Link>}
@@ -91,7 +85,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                         {isAdmin && <Link href="/dashboard/tasks/admin" className="nav-link" style={navLinkStyle}>Today Board</Link>}
                         {isAdmin && <Link href="/dashboard/reports" className="nav-link" style={navLinkStyle}>Reports</Link>}
                     </div>
-                </aside>
+                </MobileSidebarWrapper>
 
                 {/* Main Content Area */}
                 <main style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>

@@ -5,24 +5,65 @@ import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 import { revalidatePath } from 'next/cache'
 
+// We will shift all UTC dates to local 'America/Chicago' dates for bucketing
+function getLocalBusinessDateString(utcIsoString: string) {
+    // Return YYYY-MM-DD in America/Chicago
+    const d = new Date(utcIsoString);
+    return new Intl.DateTimeFormat('en-CA', { 
+        timeZone: 'America/Chicago', 
+        year: 'numeric', month: '2-digit', day: '2-digit' 
+    }).format(d);
+}
+
+function getLocalWeekStart(utcIsoString: string) {
+    const d = new Date(utcIsoString);
+    const localDateStr = getLocalBusinessDateString(utcIsoString);
+    const [y, m, day] = localDateStr.split('-').map(Number);
+    const localD = new Date(y, m - 1, day);
+    
+    // Monday as start of week
+    const currentDay = localD.getDay();
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    
+    localD.setDate(localD.getDate() + diffToMonday);
+    
+    return `${localD.getFullYear()}-${String(localD.getMonth() + 1).padStart(2, '0')}-${String(localD.getDate()).padStart(2, '0')}`;
+}
+
 export async function getMissingClockOuts(filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
     if (!isAuthorized) throw new Error("Unauthorized to view time reports")
 
     const supabase = await createClient()
     let query = supabase
-        .from('time_entry_report_view')
-        .select('id, employee_id, employee_name, clock_in, work_date, manual_entry, was_edited')
-        .eq('missing_clock_out', true)
+        .from('time_entries')
+        .select(`
+            id, employee_id, clock_in, clock_out, manual_entry, edited_at,
+            employees ( display_name )
+        `)
+        .is('clock_out', null)
         .order('clock_in', { ascending: false })
 
     if (filters?.employeeId) query = query.eq('employee_id', filters.employeeId)
-    if (filters?.startDate) query = query.gte('work_date', filters.startDate)
-    if (filters?.endDate) query = query.lte('work_date', filters.endDate)
 
     const { data, error } = await query
     if (error) console.error("Error fetching missing clock outs:", error)
-    return data || []
+    
+    const results = (data || []).map((t: any) => ({
+        id: t.id,
+        employee_id: t.employee_id,
+        employee_name: t.employees?.display_name || 'Unknown',
+        clock_in: t.clock_in,
+        work_date: getLocalBusinessDateString(t.clock_in),
+        manual_entry: t.manual_entry,
+        was_edited: t.edited_at !== null
+    }));
+
+    return results.filter(r => {
+        if (filters?.startDate && r.work_date < filters.startDate) return false;
+        if (filters?.endDate && r.work_date > filters.endDate) return false;
+        return true;
+    });
 }
 
 export async function getRecentTimeEntries(limit: number = 100, filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
@@ -31,18 +72,42 @@ export async function getRecentTimeEntries(limit: number = 100, filters?: { empl
 
     const supabase = await createClient()
     let query = supabase
-        .from('time_entry_report_view')
-        .select('id, employee_id, employee_name, work_date, clock_in, clock_out, duration_hours, manual_entry, was_edited')
+        .from('time_entries')
+        .select(`
+            id, employee_id, clock_in, clock_out, manual_entry, edited_at,
+            employees ( display_name )
+        `)
         .order('clock_in', { ascending: false })
         .limit(limit)
 
     if (filters?.employeeId) query = query.eq('employee_id', filters.employeeId)
-    if (filters?.startDate) query = query.gte('work_date', filters.startDate)
-    if (filters?.endDate) query = query.lte('work_date', filters.endDate)
 
     const { data, error } = await query
     if (error) console.error("Error fetching recent time entries:", error)
-    return data || []
+    
+    const results = (data || []).map((t: any) => {
+        let duration = 0;
+        if (t.clock_out) {
+            duration = (new Date(t.clock_out).getTime() - new Date(t.clock_in).getTime()) / 3600000;
+        }
+        return {
+            id: t.id,
+            employee_id: t.employee_id,
+            employee_name: t.employees?.display_name || 'Unknown',
+            work_date: getLocalBusinessDateString(t.clock_in),
+            clock_in: t.clock_in,
+            clock_out: t.clock_out,
+            duration_hours: duration,
+            manual_entry: t.manual_entry,
+            was_edited: t.edited_at !== null
+        };
+    });
+
+    return results.filter(r => {
+        if (filters?.startDate && r.work_date < filters.startDate) return false;
+        if (filters?.endDate && r.work_date > filters.endDate) return false;
+        return true;
+    });
 }
 
 export async function getWeeklyHoursReport(filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
@@ -51,13 +116,14 @@ export async function getWeeklyHoursReport(filters?: { employeeId?: string, star
 
     const supabase = await createClient()
     let query = supabase
-        .from('time_entry_report_view')
-        .select('employee_id, employee_name, week_start, duration_hours')
-        .eq('missing_clock_out', false)
+        .from('time_entries')
+        .select(`
+            employee_id, clock_in, clock_out,
+            employees ( display_name )
+        `)
+        .not('clock_out', 'is', null)
 
     if (filters?.employeeId) query = query.eq('employee_id', filters.employeeId)
-    if (filters?.startDate) query = query.gte('work_date', filters.startDate)
-    if (filters?.endDate) query = query.lte('work_date', filters.endDate)
 
     const { data, error } = await query
     if (error) {
@@ -65,20 +131,30 @@ export async function getWeeklyHoursReport(filters?: { employeeId?: string, star
         return []
     }
 
-    // Grouping by employee and week in Javascript since Supabase JS doesn't support GROUP BY natively on views without RPCs
     const grouped = new Map<string, any>()
-    data.forEach(row => {
-        const key = `${row.employee_id}_${row.week_start}`
+    data.forEach((row: any) => {
+        const localWorkDate = getLocalBusinessDateString(row.clock_in);
+        if (filters?.startDate && localWorkDate < filters.startDate) return;
+        if (filters?.endDate && localWorkDate > filters.endDate) return;
+
+        const weekStart = getLocalWeekStart(row.clock_in);
+        const key = `${row.employee_id}_${weekStart}`
+        
+        let duration = 0;
+        if (row.clock_out) {
+            duration = (new Date(row.clock_out).getTime() - new Date(row.clock_in).getTime()) / 3600000;
+        }
+
         if (!grouped.has(key)) {
             grouped.set(key, {
                 employee_id: row.employee_id,
-                employee_name: row.employee_name,
-                week_start: row.week_start,
+                employee_name: row.employees?.display_name || 'Unknown',
+                week_start: weekStart,
                 total_hours: 0
             })
         }
         const group = grouped.get(key)
-        group.total_hours += Number(row.duration_hours || 0)
+        group.total_hours += duration
     })
 
     const results = Array.from(grouped.values()).map(r => ({
@@ -86,7 +162,6 @@ export async function getWeeklyHoursReport(filters?: { employeeId?: string, star
         total_hours: Math.round(r.total_hours * 100) / 100
     }))
 
-    // Sort by week desc, name asc
     results.sort((a, b) => {
         if (a.week_start > b.week_start) return -1
         if (a.week_start < b.week_start) return 1

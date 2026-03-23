@@ -16,9 +16,9 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
 
     // Fetch employees for filter dropdowns
     const supabase = await createClient()
-    const { data: employees } = await supabase.from('employees').select('id, display_name').eq('is_active', true)
+    const { data: employees } = await supabase.from('employees').select('id, display_name').eq('active', true)
 
-    // Server-side loading using the view
+    // Server-side loading
     const filters = { employeeId, startDate, endDate }
     const weeklyHours = await getWeeklyHoursReport(filters)
     const missingClockOuts = await getMissingClockOuts(filters)
@@ -26,15 +26,27 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
 
     function formatTimeDisplay(isoString: string) {
         return new Date(isoString).toLocaleString([], {
+            timeZone: 'America/Chicago',
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         })
     }
 
-    // Default values for datetime-local
+    // Default values for datetime-local using strictly the 'America/Chicago' offset
     function toLocalIsoString(isoString: string) {
-        const d = new Date(isoString)
         try {
-            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+            const formatter = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/Chicago',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            });
+            const parts = formatter.formatToParts(new Date(isoString));
+            const y = parts.find(p => p.type === 'year')?.value;
+            const m = parts.find(p => p.type === 'month')?.value;
+            const d = parts.find(p => p.type === 'day')?.value;
+            const h = parts.find(p => p.type === 'hour')?.value;
+            const min = parts.find(p => p.type === 'minute')?.value;
+            if(!y || !m || !d || !h || !min) return "";
+            return `${y}-${m}-${d}T${h === '24' ? '00' : h}:${min}`;
         } catch (e) {
             return ""
         }

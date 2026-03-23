@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { CrewDashboardShell } from '@/components/dashboard/CrewDashboardShell'
+import { getTodaysTasks, getTaskInstanceItems } from '@/lib/tasks'
 
 export default async function CrewDashboardPage() {
     const supabase = await createClient()
@@ -28,12 +29,20 @@ export default async function CrewDashboardPage() {
         )
     }
 
+    const tasks = await getTodaysTasks(employee.id)
+
+    // Fetch the actual task checklist items for each assigned instance for the day
+    const tasksWithItems = await Promise.all(tasks.map(async (t: any) => ({
+        ...t,
+        items: await getTaskInstanceItems(t.task_assignment_instance_id)
+    })))
+
     return (
         <div className="page">
             <h1>Crew Workspace</h1>
             <p className="section-lead" style={{ marginTop: '0.5rem' }}>Welcome back, {employee.display_name}.</p>
 
-            <CrewDashboardShell employeeId={employee.id} />
+            <CrewDashboardShell employeeId={employee.id} tasks={tasksWithItems} />
         </div>
     )
 }
