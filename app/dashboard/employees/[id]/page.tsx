@@ -84,8 +84,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         `)
         .eq('employee_id', employee.id)
 
-    const noteIdsForReplies = [
-        ...new Set(
+    const noteIdsForReplies = Array.from(
+        new Set(
             (rawNotes || [])
                 .map((row: any) => {
                     const mn = Array.isArray(row.manager_notes) ? row.manager_notes[0] : row.manager_notes
@@ -95,7 +95,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                 })
                 .filter(Boolean) as string[]
         )
-    ]
+    )
 
     let repliesByNoteId: Record<string, { id: string; body: string; created_at: string; employee_id: string }[]> = {}
     if (noteIdsForReplies.length > 0) {
