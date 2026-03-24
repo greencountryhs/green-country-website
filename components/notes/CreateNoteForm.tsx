@@ -4,14 +4,17 @@ import { useRef } from 'react'
 import { createEmployeeNote } from '@/lib/notes'
 import { SubmitButton } from '@/components/submit-button'
 
-export function CreateNoteForm({ employeeId }: { employeeId: string }) {
+export function CreateNoteForm() {
     const formRef = useRef<HTMLFormElement>(null)
 
     async function action(formData: FormData) {
-        const content = formData.get('content') as string
+        const rawContent = formData.get('content')
+        const content = typeof rawContent === 'string' ? rawContent : ''
         if (content.trim()) {
-            await createEmployeeNote(employeeId, content)
-            formRef.current?.reset()
+            const result = await createEmployeeNote(content)
+            if (!result?.error) {
+                formRef.current?.reset()
+            }
         }
     }
 

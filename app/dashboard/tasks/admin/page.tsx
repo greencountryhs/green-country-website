@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
-import { getTaskEditorData } from '@/lib/tasks'
+import { getLocalDateString, getTaskEditorData } from '@/lib/tasks'
 import { AddTaskButton } from '../scheduler/AddTaskButton'
 import { InstanceActions } from '../scheduler/SchedulerActions'
 
@@ -14,7 +14,7 @@ export default async function AdminTasksPage() {
     }
 
     const supabase = await createClient()
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = getLocalDateString()
 
     const editorData = await getTaskEditorData()
 

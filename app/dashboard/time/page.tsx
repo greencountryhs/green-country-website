@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
+import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
 
 type Employee = {
     id: string;
@@ -24,12 +25,20 @@ type CombinedData = Employee & {
     clock_in_time: string | null;
 };
 
+/** Match DB check constraint + avoid bulk/UI drift from stray casing or whitespace */
+function normalizeProfileRole(raw: string | null | undefined): 'admin' | 'employee' {
+    const r = (raw ?? 'employee').toString().trim().toLowerCase();
+    return r === 'admin' ? 'admin' : 'employee';
+}
+
 export default function TimeTrackingPage() {
     const supabase = createClient();
     const [employees, setEmployees] = useState<CombinedData[]>([]);
     const [loading, setLoading] = useState(true);
     const [role, setRole] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [selfClockOutForm, setSelfClockOutForm] = useState<{ employeeId: string; entryId: string } | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -46,14 +55,19 @@ export default function TimeTrackingPage() {
             return;
         }
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('role')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
 
-        const userRole = profile?.role || 'employee';
+        if (profileError) {
+            console.error('Error fetching profile for time page:', profileError);
+        }
+
+        const userRole = normalizeProfileRole(profile?.role);
         setRole(userRole);
+        setCurrentUserId(user.id);
 
         // Fetch employees
         let empQuery = supabase.from('employees').select('*').eq('active', true).order('display_name');
@@ -290,13 +304,42 @@ export default function TimeTrackingPage() {
 
                                 <div style={{ marginTop: '0.5rem' }}>
                                     {isWorking ? (
-                                        <button
-                                            onClick={() => handleClockOut(emp.id, emp.current_entry_id!)}
-                                            className="cta"
-                                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
-                                        >
-                                            Clock Out
-                                        </button>
+                                        selfClockOutForm?.employeeId === emp.id ? (
+                                            <ClockOutQuestionnaire
+                                                entryId={selfClockOutForm.entryId}
+                                                onCancel={() => setSelfClockOutForm(null)}
+                                                onSuccess={() => {
+                                                    setSelfClockOutForm(null);
+                                                    setEmployees((prev) =>
+                                                        prev.map((e) =>
+                                                            e.id === emp.id
+                                                                ? { ...e, current_entry_id: null, clock_in_time: null }
+                                                                : e
+                                                        )
+                                                    );
+                                                }}
+                                            />
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const isSelf =
+                                                        !!currentUserId && emp.user_id === currentUserId;
+                                                    if (isSelf) {
+                                                        setSelfClockOutForm({
+                                                            employeeId: emp.id,
+                                                            entryId: emp.current_entry_id!
+                                                        });
+                                                    } else {
+                                                        handleClockOut(emp.id, emp.current_entry_id!);
+                                                    }
+                                                }}
+                                                className="cta"
+                                                style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
+                                            >
+                                                Clock Out
+                                            </button>
+                                        )
                                     ) : (
                                         <button
                                             onClick={() => handleClockIn(emp.id)}

@@ -60,7 +60,7 @@ export default async function DashboardHome() {
                         </Link>
                     </>
                 )}
-                <Link href="/dashboard/time" className="cta secondary" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
+                <Link href="/dashboard/time" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
                     Time Tracking
                 </Link>
                 {!isAdmin && (

@@ -14,6 +14,13 @@ export type ScheduleDirection =
 
 export type TaskDisplayMode = 'full' | 'section' | 'single';
 
+export function getLocalDateString(date: Date = new Date()): string {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+}
+
 export async function getTaskTemplates() {
     const supabase = await createClient()
     const { data, error } = await supabase
@@ -195,7 +202,7 @@ export function groupWeekAssignmentInstancesByDate(
 
 export async function getTodaysTasks(employeeId: string) {
     const supabase = await createClient()
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = getLocalDateString()
 
     const { data: roles } = await supabase.from('employee_roles').select('role_id').eq('employee_id', employeeId)
     const roleIds = roles?.map(r => r.role_id) || []
@@ -252,7 +259,9 @@ export async function getTaskInstanceItems(instanceId: string) {
             ),
             task_item_logs (
                 task_template_item_id,
-                status
+                status,
+                logged_at,
+                employees ( display_name )
             )
         `)
         .eq('id', instanceId)
@@ -292,24 +301,28 @@ export async function getTaskInstanceItems(instanceId: string) {
                 const sectionItems = sec.task_template_items || []
                 sectionItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
                 for (const item of sectionItems) {
-                    const isCompleted = logs.some((l: any) => l.task_template_item_id === item.id && l.status === 'completed')
+                    const log = logs.find((l: any) => l.task_template_item_id === item.id && l.status === 'completed')
                     items.push({
                         id: item.id,
                         content: item.content,
                         section: sec.title,
-                        completed: isCompleted
+                        completed: !!log,
+                        completedBy: (log?.employees as any)?.display_name || null,
+                        completedAt: log?.logged_at || null
                     })
                 }
             }
         }
         return items
     } else {
-        const isCompleted = logs.some((l: any) => l.task_template_item_id === null && l.status === 'completed')
+        const log = logs.find((l: any) => l.task_template_item_id === null && l.status === 'completed')
         return [{
             id: 'custom',
             content: instance.title,
             section: null,
-            completed: isCompleted
+            completed: !!log,
+            completedBy: (log?.employees as any)?.display_name || null,
+            completedAt: log?.logged_at || null
         }]
     }
 }

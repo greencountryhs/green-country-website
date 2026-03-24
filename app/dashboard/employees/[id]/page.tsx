@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createAdminEmployeeRecord } from '../actions'
+import { SubmitButton } from '@/components/submit-button'
+import { EmployeeManagerNotesList } from '@/components/notes/EmployeeManagerNotesList'
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
     const supabase = await createClient()
@@ -63,20 +65,96 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
         .order('logged_at', { ascending: false })
         .limit(5)
 
-    // Fetch Incoming Manager Notes
-    const { data: notes } = await supabase
+    const uuidKey = (u: string | null | undefined) =>
+        u == null || u === '' ? null : String(u).trim().toLowerCase()
+
+    // Fetch Incoming Manager Notes (replies loaded separately — nested embed can fail the whole query)
+    const { data: rawNotes } = await supabase
         .from('manager_note_reads')
         .select(`
             read_at,
+            manager_note_id,
             manager_notes (
-                content,
+                id,
+                body,
                 priority,
                 created_at,
-                author_id
+                created_by
             )
         `)
         .eq('employee_id', employee.id)
-        .order('manager_notes(created_at)', { ascending: false })
+
+    const noteIdsForReplies = [
+        ...new Set(
+            (rawNotes || [])
+                .map((row: any) => {
+                    const mn = Array.isArray(row.manager_notes) ? row.manager_notes[0] : row.manager_notes
+                    const raw = (row.manager_note_id ?? mn?.id) as string | undefined
+                    const k = uuidKey(raw)
+                    return k || undefined
+                })
+                .filter(Boolean) as string[]
+        )
+    ]
+
+    let repliesByNoteId: Record<string, { id: string; body: string; created_at: string; employee_id: string }[]> = {}
+    if (noteIdsForReplies.length > 0) {
+        const { data: replyRows, error: replyErr } = await supabase
+            .from('manager_note_replies')
+            .select('id, manager_note_id, body, created_at, employee_id')
+            .in('manager_note_id', noteIdsForReplies)
+            .eq('employee_id', employee.id)
+
+        if (replyErr) {
+            console.error('Error fetching manager note replies (employee detail):', replyErr)
+        } else {
+            if (process.env.NODE_ENV === 'development') {
+                console.info('[employee detail] manager_note_replies', {
+                    replyRowCount: replyRows?.length ?? 0,
+                    noteIdCount: noteIdsForReplies.length
+                })
+            }
+            for (const r of replyRows || []) {
+                const k = uuidKey(r.manager_note_id)
+                if (!k) continue
+                if (!repliesByNoteId[k]) repliesByNoteId[k] = []
+                repliesByNoteId[k].push(r)
+            }
+        }
+    }
+
+    const notes = (rawNotes || []).map((row: any) => {
+        const mn = Array.isArray(row.manager_notes) ? row.manager_notes[0] : row.manager_notes
+        const nid = uuidKey(row.manager_note_id ?? mn?.id)
+        return {
+            ...row,
+            manager_notes: mn
+                ? { ...mn, manager_note_replies: nid ? (repliesByNoteId[nid] || []) : [] }
+                : mn
+        }
+    }).sort((a: any, b: any) => {
+        const dateA = new Date(a.manager_notes?.created_at || 0).getTime()
+        const dateB = new Date(b.manager_notes?.created_at || 0).getTime()
+        return dateB - dateA
+    })
+
+    const notesForClient = notes.map((n: any) => ({
+        read_at: n.read_at ?? null,
+        manager_notes: n.manager_notes
+            ? {
+                  id: n.manager_notes.id,
+                  body: n.manager_notes.body,
+                  priority: n.manager_notes.priority,
+                  created_at: n.manager_notes.created_at,
+                  created_by: n.manager_notes.created_by,
+                  manager_note_replies: (n.manager_notes.manager_note_replies || []).map((r: any) => ({
+                      id: r.id,
+                      body: r.body,
+                      created_at: r.created_at
+                  }))
+              }
+            : null
+    }))
 
     // Resolve Manager's Own Employee ID for Note Sending
     const { data: managerEmp } = await supabase
@@ -88,22 +166,36 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     async function sendManagerNote(formData: FormData) {
         'use server'
         const supabaseServer = await createClient()
+        const { data: { user } } = await supabaseServer.auth.getUser()
+        if (!user) {
+            throw new Error('Not authenticated')
+        }
+
         const content = formData.get('content') as string
         const employeeId = formData.get('employeeId') as string
-        const authorId = formData.get('authorId') as string
 
-        if (!content || !authorId) return
+        if (!content || !employeeId) return
+
+        const { data: authorEmployee, error: authorEmployeeErr } = await supabaseServer
+            .from('employees')
+            .select('id')
+            .eq('user_id', user.id)
+            .single()
+
+        if (authorEmployeeErr || !authorEmployee) {
+            throw new Error('Your admin account is not linked to an employee profile. Use "Fix Issue (Create Admin Profile)" and try again.')
+        }
 
         const { data: note, error: noteErr } = await supabaseServer
             .from('manager_notes')
-            .insert([{ author_id: authorId, content, priority: 'normal' }])
+            .insert([{ created_by: user.id, title: 'Manager Note', body: content, priority: 'normal' }])
             .select('id')
             .single()
 
         if (note) {
             await supabaseServer
                 .from('manager_note_reads')
-                .insert([{ note_id: note.id, employee_id: employeeId }])
+                .insert([{ manager_note_id: note.id, employee_id: employeeId }])
         }
 
         revalidatePath(`/dashboard/employees/${employeeId}`)
@@ -153,17 +245,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                         {(!notes || notes.length === 0) ? (
                             <p className="muted">No notes sent to this crew member.</p>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-                                {notes.map((n: any, idx) => (
-                                    <div key={idx} style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                        <p style={{ margin: '0 0 0.5rem 0' }}>{n.manager_notes?.content}</p>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--muted)' }}>
-                                            <span>Sent: {new Date(n.manager_notes?.created_at).toLocaleDateString()}</span>
-                                            <span>{n.read_at ? <span style={{ color: '#166534' }}>Read ({new Date(n.read_at).toLocaleDateString()})</span> : 'Unread'}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <EmployeeManagerNotesList notes={notesForClient} employeeId={employee.id} />
                         )}
                     </div>
                 </div>
@@ -176,9 +258,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                         {managerEmp?.id ? (
                             <form action={sendManagerNote} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 <input type="hidden" name="employeeId" value={employee.id} />
-                                <input type="hidden" name="authorId" value={managerEmp.id} />
                                 <textarea name="content" required placeholder="Type a note..." rows={4} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border)', resize: 'vertical' }}></textarea>
-                                <button type="submit" className="cta primary" style={{ width: '100%', padding: '0.5rem' }}>Send Note</button>
+                                <SubmitButton text="Send Note" pendingText="Sending..." />
                             </form>
                         ) : (
                             <form action={createAdminEmployeeRecord} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#fef2f2', padding: '1rem', borderRadius: '4px', border: '1px solid #fecaca' }}>

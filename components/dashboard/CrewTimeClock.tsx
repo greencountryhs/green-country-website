@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
 
 export function CrewTimeClock({ employeeId }: { employeeId: string }) {
     const supabase = createClient();
@@ -9,6 +10,7 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
     const [entryId, setEntryId] = useState<string | null>(null);
     const [clockInTime, setClockInTime] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
+    const [showClockOutForm, setShowClockOutForm] = useState(false);
 
     useEffect(() => {
         fetchStatus();
@@ -50,25 +52,14 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
         } else if (data) {
             setEntryId(data.id);
             setClockInTime(data.clock_in);
-        }
-    }
-
-    async function handleClockOut() {
-        setActionMessage(null);
-        if (!entryId) return;
-
-        const now = new Date().toISOString();
-        const { error } = await supabase
-            .from('time_entries')
-            .update({ clock_out: now })
-            .eq('id', entryId);
-
-        if (error) {
-            console.error('Error clocking out:', error);
-            alert('Failed to clock out');
-        } else {
-            setEntryId(null);
-            setClockInTime(null);
+            // Match Time Tracking page: redirect non-admins to Today's Tasks after clock-in
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+                if (profile?.role !== 'admin') {
+                    window.location.href = '/dashboard/tasks';
+                }
+            }
         }
     }
 
@@ -105,13 +96,29 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
 
             <div style={{ marginTop: '0.5rem' }}>
                 {isWorking ? (
-                    <button
-                        onClick={handleClockOut}
-                        className="cta"
-                        style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
-                    >
-                        Clock Out
-                    </button>
+                    showClockOutForm && entryId ? (
+                        <ClockOutQuestionnaire
+                            entryId={entryId}
+                            onCancel={() => setShowClockOutForm(false)}
+                            onSuccess={() => {
+                                setShowClockOutForm(false);
+                                setEntryId(null);
+                                setClockInTime(null);
+                            }}
+                        />
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActionMessage(null);
+                                setShowClockOutForm(true);
+                            }}
+                            className="cta"
+                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
+                        >
+                            Clock Out
+                        </button>
+                    )
                 ) : (
                     <button
                         onClick={handleClockIn}

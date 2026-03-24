@@ -78,7 +78,7 @@ export async function inviteCrewMemberLogin(employeeId: string, email: string) {
     }
 }
 
-export async function sendManagerNote(employeeId: string, authorId: string, content: string) {
+export async function sendManagerNote(employeeId: string, _authorId: string, content: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -88,24 +88,34 @@ export async function sendManagerNote(employeeId: string, authorId: string, cont
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') return { error: "Unauthorized" }
 
-    if (!content || !authorId || !employeeId) {
+    if (!content || !employeeId) {
         return { error: "Missing required fields" }
+    }
+
+    const { data: authorEmployee, error: authorEmployeeErr } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+    if (authorEmployeeErr || !authorEmployee) {
+        return { error: 'Your admin account is not linked to an employee profile. Use "Fix Issue (Create Admin Profile)" and try again.' }
     }
 
     const { data: note, error: noteErr } = await supabase
         .from('manager_notes')
-        .insert([{ author_id: authorId, content, priority: 'normal' }])
+        .insert([{ created_by: user.id, title: 'Manager Note', body: content, priority: 'normal' }])
         .select('id')
         .single()
 
     if (noteErr || !note) {
         console.error("Failed to create note:", noteErr)
-        return { error: "Failed to create note." }
+        return { error: `Failed to create note: ${noteErr?.message || 'unknown database error'} (code: ${noteErr?.code ?? 'n/a'})` }
     }
 
     const { error: readErr } = await supabase
         .from('manager_note_reads')
-        .insert([{ note_id: note.id, employee_id: employeeId }])
+        .insert([{ manager_note_id: note.id, employee_id: employeeId }])
 
     if (readErr) {
         console.error("Failed to link note to employee:", readErr)

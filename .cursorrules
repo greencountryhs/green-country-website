@@ -1,0 +1,200 @@
+# Level & Anvil/Green Country Construction App Rules
+
+## Project Priorities
+- Preserve existing architecture.
+- Make the smallest change that fully solves the problem.
+- Do not redesign working systems while fixing isolated bugs.
+
+## Tech Stack
+- Next.js App Router
+- TypeScript for new code
+- Supabase SSR auth/data access
+- Tailwind + shadcn/ui
+
+## Core Engineering Rules
+- Prefer Server Components and Server Actions where the repo already uses them.
+- Use existing project patterns before introducing new abstractions.
+- Maintain mobile-first UI. Job-site touch targets should remain large and readable.
+- Keep changes localized and easy to review.
+
+## Supabase and Auth Rules
+- Follow the repo’s existing Supabase client helper patterns.
+- Never bypass RLS in app code.
+- Never use service-role logic in user-facing app flows.
+- Treat RLS and server-side authorization as part of the implementation, not an afterthought.
+
+## Authorization Rules
+- This repo uses capability-based authorization.
+- Do not replace capability checks with role-name checks or admin-only shortcuts.
+- Use existing capabilities where applicable, including task and reporting permissions.
+- UI gating and server enforcement must stay aligned.
+
+## Database Rules
+- Never edit old migrations.
+- Create a new migration for schema or policy changes.
+- Keep migrations narrowly scoped and reversible in intent.
+- Do not rename stable tables/entities without explicit instruction.
+- The database table is `employees` even when UI text says “Crew”.
+
+## Task System Rules
+- Respect the current separation between planned assignments and dated execution instances.
+- Preserve compatibility with weekly scheduler, Today Board, time tracking, and task execution logs.
+- Do not simplify the task architecture in ways that break recurrence, rescheduling, or instance-level edits.
+
+## Implementation Rules
+- First inspect the surrounding files and match local patterns.
+- Prefer modifying existing files over creating parallel replacements.
+- Do not assume schema details, types, or field names without checking the repo.
+- Fix root causes rather than masking issues with UI-only workarounds.
+- Do not leave duplicate code paths, stale comments, or dead fallback logic.
+
+## Output Rules for the Agent
+Before making changes:
+- State the implementation plan
+- List the files to change
+- Note any migration, RLS, or env implications
+
+After making changes:
+- Summarize what changed
+- Call out any risks
+- Provide validation steps and manual test cases
+
+## Collaboration Protocols
+- If solving a request requires breaking one of these rules, explicitly identify the rule, explain why it is blocking the correct fix, and present the lowest-risk exception with alternatives before proceeding.
+- Proactively recommend when a different mode or tool would be more effective (Cursor editor workflows, browser automation/testing, Supabase dashboard, external profiling/CI tools).
+## Collaboration Protocols
+
+### Pre-Change Required Analysis (MANDATORY)
+
+Before making any code change, the agent MUST state:
+
+1. What exactly is broken  
+2. Why it is broken (root cause, not symptoms)  
+3. The smallest possible fix  
+4. What could break from this fix  
+
+Do not proceed with edits until all four are answered.
+
+If the issue is not yet proven:
+- Perform an audit and report findings only
+- Do not modify code
+
+If a required assumption is uncertain:
+- Inspect the repo and confirm it before editing
+- Do not guess
+
+---
+
+### Scope Control
+
+- Fix ONE issue per batch unless explicitly instructed otherwise
+- Do not combine refactors with bug fixes
+- Do not “clean up” unrelated code
+- Do not introduce new abstractions unless required to fix the issue
+
+Prefer:
+- minimal, localized diffs
+- modifying existing code over creating parallel implementations
+
+---
+
+### Architecture Preservation Rules
+
+- Do NOT redesign working systems
+- Do NOT modify or rewrite existing migrations
+- Do NOT bypass RLS or rely on service-role logic in app code
+- Do NOT replace capability-based authorization with role-name checks
+
+Follow existing patterns in:
+- Supabase client usage
+- Server Actions
+- Auth + capability enforcement
+- Task system architecture
+
+---
+
+### Authorization Rules
+
+- All sensitive actions must be enforced server-side
+- Never trust client-supplied identity (userId, employeeId, authorId, etc.)
+- Derive identity from authenticated user on the server
+- Respect capability-based authorization (`manage_tasks`, etc.)
+
+If auth assumptions are unclear:
+- trace the full path (UI → action → DB → RLS)
+- confirm before editing
+
+---
+
+### Database Rules
+
+- Never edit past migrations
+- Create new migrations only if absolutely required
+- Keep schema changes minimal and explicit
+- Preserve existing table relationships and constraints
+
+Important:
+- `employees` table is canonical, even if UI says “Crew”
+
+---
+
+### Task System Rules
+
+- Do not collapse planned tasks and task instances
+- Preserve:
+  - `task_assignment_instances`
+  - scheduler behavior
+  - Today Board logic
+- Do not simplify recurrence or instance handling
+
+---
+
+### Implementation Behavior
+
+Before editing:
+- Inspect surrounding files and match local patterns
+- Trace full data flow if the issue involves DB or auth
+
+During editing:
+- Make the smallest possible change that fully resolves the issue
+- Do not leave dead code or duplicate logic
+
+After editing:
+- Summarize what changed
+- Identify risks
+- Provide manual validation steps
+
+---
+
+### Error Handling
+
+- Do not allow UI to get stuck in loading/sending states
+- Always handle async flows with proper cleanup (e.g., `finally`)
+- Surface errors clearly to the user when possible
+
+---
+
+### When to Recommend Better Approach
+
+If the task would be significantly improved by:
+- a different tool
+- a different mode (agent vs edit)
+- or a different approach
+
+The agent MUST:
+- state the recommendation
+- explain why
+- ask before proceeding
+
+---
+
+### Rule Exceptions
+
+If a rule must be bent:
+- explicitly state:
+  - which rule
+  - why it cannot be followed
+  - risks of proceeding
+  - alternative options
+
+Do not silently violate rules.

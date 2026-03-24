@@ -97,13 +97,13 @@ export function TaskEditorModal({
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>
                             <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Date</label>
-                            <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }} />
+                            <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }} />
                         </div>
                     </div>
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Task Name</label>
-                        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Unload specific truck" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px' }} />
+                        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Unload specific truck" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }} />
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
@@ -124,14 +124,14 @@ export function TaskEditorModal({
                         </div>
                         
                         {targetType === 'employee' && (
-                            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '0.75rem' }}>
+                            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '0.75rem', color: 'var(--ink)', backgroundColor: '#fff' }}>
                                 <option value="" disabled>-- Select Person --</option>
                                 {editorData.employees.map(e => <option key={e.id} value={e.id}>{e.display_name}</option>)}
                             </select>
                         )}
                         
                         {targetType === 'role' && (
-                            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '0.75rem' }}>
+                            <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '0.75rem', color: 'var(--ink)', backgroundColor: '#fff' }}>
                                 <option value="" disabled>-- Select Role --</option>
                                 {editorData.roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                             </select>

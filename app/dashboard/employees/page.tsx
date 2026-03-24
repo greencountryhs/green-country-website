@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { inviteCrewMemberLogin, sendManagerNote, createAdminEmployeeRecord } from './actions';
@@ -15,6 +16,7 @@ type Employee = {
 };
 
 export default function EmployeesPage() {
+    const router = useRouter();
     const supabase = createClient();
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
@@ -43,6 +45,18 @@ export default function EmployeesPage() {
         if (user) {
             const { data } = await supabase.from('employees').select('id').eq('user_id', user.id).single()
             if (data) setManagerEmpId(data.id)
+        }
+    }
+
+    async function handleFixProfile(e: React.FormEvent) {
+        e.preventDefault();
+        try {
+            await createAdminEmployeeRecord();
+            await fetchManager();
+            router.refresh();
+            setPageStatus({ type: 'success', text: 'Admin profile created successfully! You can now send messages.' });
+        } catch (err: any) {
+            setPageStatus({ type: 'error', text: err.message || "Failed to fix profile." });
         }
     }
 
@@ -176,16 +190,21 @@ export default function EmployeesPage() {
         if (!messageModalTarget || !managerEmpId || !messageContent) return;
 
         setIsSendingMessage(true)
-        const res = await sendManagerNote(messageModalTarget.id, managerEmpId, messageContent)
-        
-        if (res?.error) {
-            setPageStatus({ type: 'error', text: res.error })
-        } else {
-            setPageStatus({ type: 'success', text: `Message sent to ${messageModalTarget.name}!` })
-            setMessageModalTarget(null)
-            setMessageContent('')
+        try {
+            const res = await sendManagerNote(messageModalTarget.id, managerEmpId, messageContent)
+
+            if (res?.error) {
+                setPageStatus({ type: 'error', text: res.error })
+            } else {
+                setPageStatus({ type: 'success', text: `Message sent to ${messageModalTarget.name}!` })
+                setMessageModalTarget(null)
+                setMessageContent('')
+            }
+        } catch (err: any) {
+            setPageStatus({ type: 'error', text: err?.message || 'Failed to send message.' })
+        } finally {
+            setIsSendingMessage(false)
         }
-        setIsSendingMessage(false)
     }
 
     return (
@@ -208,8 +227,15 @@ export default function EmployeesPage() {
                     <div className="card" style={{ width: '100%', maxWidth: '500px', margin: '1rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                             <h3 style={{ margin: 0 }}>Message {messageModalTarget.name}</h3>
-                            <button onClick={() => setMessageModalTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
+                            <button onClick={() => { setMessageModalTarget(null); setPageStatus(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
                         </div>
+
+                        {pageStatus && (
+                            <div style={{ padding: '0.75rem', marginBottom: '1rem', borderRadius: '4px', border: `1px solid ${pageStatus.type === 'error' ? '#fca5a5' : '#86efac'}`, background: pageStatus.type === 'error' ? '#fef2f2' : '#f0fdf4', color: pageStatus.type === 'error' ? '#991b1b' : '#166534', fontSize: '0.85rem' }}>
+                                {pageStatus.text}
+                            </div>
+                        )}
+
                         {managerEmpId ? (
                             <form onSubmit={submitMessage} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <textarea
@@ -225,7 +251,7 @@ export default function EmployeesPage() {
                                 </button>
                             </form>
                         ) : (
-                            <form action={createAdminEmployeeRecord} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#fef2f2', padding: '1rem', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                            <form onSubmit={handleFixProfile} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#fef2f2', padding: '1rem', borderRadius: '4px', border: '1px solid #fecaca' }}>
                                 <p style={{ color: '#991b1b', fontSize: '0.85rem', margin: 0 }}>Your Admin account is not linked to an employee record so you cannot author notes.</p>
                                 <button type="submit" className="cta secondary" style={{ background: 'white' }}>Fix Issue (Create Admin Profile)</button>
                             </form>

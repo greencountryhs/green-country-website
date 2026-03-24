@@ -183,6 +183,7 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                                     <th style={{ padding: '0.5rem' }}>In / Out</th>
                                     <th style={{ padding: '0.5rem' }}>Dur (hr)</th>
                                     <th style={{ padding: '0.5rem' }}>Flags</th>
+                                    <th style={{ padding: '0.5rem' }}>Clock-out Q</th>
                                     <th style={{ padding: '0.5rem' }}>Action</th>
                                 </tr>
                             </thead>
@@ -207,6 +208,84 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                                                 {t.manual_entry && <span className="badge" title="Manual" style={{ padding: '0.1rem 0.3rem', borderRadius: '4px', background: '#fef08a', color: '#854d0e', fontSize: '0.7rem' }}>M</span>}
                                                 {t.was_edited && <span className="badge" title="Edited" style={{ padding: '0.1rem 0.3rem', borderRadius: '4px', background: '#e0e7ff', color: '#3730a3', fontSize: '0.7rem' }}>E</span>}
                                             </div>
+                                        </td>
+                                        <td style={{ padding: '0.5rem', maxWidth: '14rem', verticalAlign: 'top' }}>
+                                            {(() => {
+                                                const hasCrewQ = !!(
+                                                    t.clock_out_work_summary ||
+                                                    t.clock_out_supply_needs ||
+                                                    t.clock_out_day_notes ||
+                                                    t.clock_out_blockers ||
+                                                    t.clock_out_follow_up_needed
+                                                );
+                                                const adminNote = (t.edit_reason && String(t.edit_reason).trim()) || '';
+                                                return (
+                                                    <>
+                                                        {hasCrewQ ? (
+                                                            <details>
+                                                                <summary className="link small" style={{ cursor: 'pointer' }}>View</summary>
+                                                                <div
+                                                                    style={{
+                                                                        marginTop: '0.5rem',
+                                                                        fontSize: '0.8rem',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '0.35rem',
+                                                                        color: 'var(--muted)'
+                                                                    }}
+                                                                >
+                                                                    {t.clock_out_work_summary && (
+                                                                        <div>
+                                                                            <strong style={{ color: 'var(--foreground, #111)' }}>Work: </strong>
+                                                                            {t.clock_out_work_summary}
+                                                                        </div>
+                                                                    )}
+                                                                    {t.clock_out_supply_needs && (
+                                                                        <div>
+                                                                            <strong style={{ color: 'var(--foreground, #111)' }}>Supplies: </strong>
+                                                                            {t.clock_out_supply_needs}
+                                                                        </div>
+                                                                    )}
+                                                                    {t.clock_out_day_notes && (
+                                                                        <div>
+                                                                            <strong style={{ color: 'var(--foreground, #111)' }}>Notes: </strong>
+                                                                            {t.clock_out_day_notes}
+                                                                        </div>
+                                                                    )}
+                                                                    {t.clock_out_blockers && (
+                                                                        <div>
+                                                                            <strong style={{ color: 'var(--foreground, #111)' }}>Blockers: </strong>
+                                                                            {t.clock_out_blockers}
+                                                                        </div>
+                                                                    )}
+                                                                    {t.clock_out_follow_up_needed && (
+                                                                        <div style={{ color: '#92400e' }}>
+                                                                            <strong>Follow-up: </strong>Yes
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </details>
+                                                        ) : null}
+                                                        {adminNote ? (
+                                                            <div
+                                                                style={{
+                                                                    marginTop: hasCrewQ ? '0.6rem' : 0,
+                                                                    paddingTop: hasCrewQ ? '0.5rem' : 0,
+                                                                    borderTop: hasCrewQ ? '1px dashed var(--border)' : undefined,
+                                                                    fontSize: '0.78rem',
+                                                                    color: 'var(--muted)'
+                                                                }}
+                                                            >
+                                                                <span style={{ fontWeight: 600, color: '#78350f' }}>Admin note: </span>
+                                                                {adminNote}
+                                                            </div>
+                                                        ) : null}
+                                                        {!hasCrewQ && !adminNote ? (
+                                                            <span style={{ color: 'var(--muted)' }}>—</span>
+                                                        ) : null}
+                                                    </>
+                                                );
+                                            })()}
                                         </td>
                                         <td style={{ padding: '0.5rem' }}>
                                             <EditTimeEntryForm

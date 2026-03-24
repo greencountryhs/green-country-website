@@ -74,7 +74,8 @@ export async function getRecentTimeEntries(limit: number = 100, filters?: { empl
     let query = supabase
         .from('time_entries')
         .select(`
-            id, employee_id, clock_in, clock_out, manual_entry, edited_at,
+            id, employee_id, clock_in, clock_out, manual_entry, edited_at, edit_reason,
+            clock_out_work_summary, clock_out_day_notes, clock_out_supply_needs, clock_out_blockers, clock_out_follow_up_needed,
             employees ( display_name )
         `)
         .order('clock_in', { ascending: false })
@@ -99,7 +100,13 @@ export async function getRecentTimeEntries(limit: number = 100, filters?: { empl
             clock_out: t.clock_out,
             duration_hours: duration,
             manual_entry: t.manual_entry,
-            was_edited: t.edited_at !== null
+            was_edited: t.edited_at !== null,
+            edit_reason: t.edit_reason ?? null,
+            clock_out_work_summary: t.clock_out_work_summary ?? null,
+            clock_out_day_notes: t.clock_out_day_notes ?? null,
+            clock_out_supply_needs: t.clock_out_supply_needs ?? null,
+            clock_out_blockers: t.clock_out_blockers ?? null,
+            clock_out_follow_up_needed: !!t.clock_out_follow_up_needed
         };
     });
 

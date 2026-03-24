@@ -28,7 +28,7 @@ export function TaskDisplayList({
 
         // Backend persistent log
         const actualLogId = itemId === 'custom' ? null : itemId;
-        await logTaskItem(instanceId, actualLogId, employeeId)
+        await logTaskItem(instanceId, actualLogId)
     }
 
     const progressPercent = items.length > 0 
@@ -63,9 +63,16 @@ export function TaskDisplayList({
                                 disabled={item.completed}
                                 style={{ width: '20px', height: '20px' }}
                             />
-                            <span style={{ textDecoration: item.completed ? 'line-through' : 'none' }}>
-                                {item.content}
-                            </span>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ textDecoration: item.completed ? 'line-through' : 'none' }}>
+                                    {item.content}
+                                </span>
+                                {item.completed && item.completedBy && (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                                        Completed by {item.completedBy} on {new Date(item.completedAt).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>

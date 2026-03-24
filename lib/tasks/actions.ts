@@ -3,15 +3,45 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { ScheduleDirection } from './index'
+import { CAPABILITIES } from '@/lib/auth/capabilities'
+import { requireCapability } from '@/lib/auth/requireCapability'
 
-export async function logTaskItem(instanceId: string, templateItemId: string | null, employeeId: string) {
+async function assertCanManageTasks() {
+    const isAuthorized = await requireCapability(CAPABILITIES.MANAGE_TASKS)
+    if (!isAuthorized) {
+        throw new Error('Unauthorized: manage_tasks capability required')
+    }
+}
+
+async function getCurrentEmployeeId() {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        throw new Error('Unauthorized: user not authenticated')
+    }
+
+    const { data: employee, error } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+    if (error || !employee) {
+        throw new Error('Unauthorized: employee profile not found')
+    }
+
+    return { supabase, employeeId: employee.id }
+}
+
+export async function logTaskItem(instanceId: string, templateItemId: string | null) {
+    const { supabase, employeeId: actorEmployeeId } = await getCurrentEmployeeId()
     const { error } = await supabase
         .from('task_item_logs')
         .insert([{
             task_assignment_instance_id: instanceId,
             task_template_item_id: templateItemId,
-            employee_id: employeeId,
+            // Do not trust client-supplied employee IDs for write attribution.
+            employee_id: actorEmployeeId,
             status: 'completed',
             logged_at: new Date().toISOString()
         }])
@@ -22,6 +52,7 @@ export async function logTaskItem(instanceId: string, templateItemId: string | n
 }
 
 export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
+    await assertCanManageTasks()
     const supabase = await createClient()
 
     const { data: instance, error: fetchErr } = await supabase
@@ -53,7 +84,16 @@ export async function rescheduleTaskInstance(instanceId: string, direction: Sche
 }
 
 export async function reassignTaskInstance(instanceId: string, targetType: string, targetId?: string) {
+    await assertCanManageTasks()
     const supabase = await createClient()
+
+    const isValidTargetType = targetType === 'employee' || targetType === 'role' || targetType === 'all_crew'
+    if (!isValidTargetType) {
+        throw new Error('Invalid target type')
+    }
+    if ((targetType === 'employee' || targetType === 'role') && !targetId) {
+        throw new Error(`Target ID is required for ${targetType} reassignment`)
+    }
 
     // Wipe existing targets for this instance
     const { error: wipeErr } = await supabase
@@ -92,6 +132,7 @@ export async function createCustomTaskInstance(
     targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
     targetId?: string
 ) {
+    await assertCanManageTasks()
     if (!title || !title.trim()) throw new Error("Task title is required.")
     if (!dateStr) throw new Error("Assignment date is required.")
     if (targetType === 'employee' && !targetId) throw new Error("Employee target requires an employee ID.")
@@ -162,6 +203,7 @@ export async function createSchedulerInstance(
     targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
     targetId?: string
 ) {
+    await assertCanManageTasks()
     const supabase = await createClient()
 
     let legacyAssignmentId = null
@@ -223,6 +265,7 @@ export async function createSchedulerInstance(
 }
 
 export async function deleteTaskInstance(instanceId: string) {
+    await assertCanManageTasks()
     const supabase = await createClient()
 
     // 1. Load the instance and its parent assignment info
@@ -299,6 +342,7 @@ export async function reorderTaskInstance(
     instanceId: string,
     direction: 'up' | 'down'
 ) {
+    await assertCanManageTasks()
     const supabase = await createClient()
 
     // 1. Load the current instance
