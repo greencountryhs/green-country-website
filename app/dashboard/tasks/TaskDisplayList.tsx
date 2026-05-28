@@ -143,6 +143,10 @@ export function TaskDisplayList({
                 <div style={{ background: 'var(--primary)', height: '100%', width: `${progressPercent}%`, transition: 'width 0.3s ease' }} />
             </div>
 
+            {checklistVisible && (
+                <h3 style={{ margin: '0 0 0.8rem 0', fontSize: '1rem' }}>Checklist</h3>
+            )}
+
             {/* FULL MODE: Shows all items at once */}
             {displayMode === 'full' && checklistVisible && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -201,10 +205,10 @@ export function TaskDisplayList({
                 </div>
             )}
 
-            {checklistVisible && items.length === 0 && process.env.NODE_ENV !== 'production' && (
-                <div className="callout" style={{ marginTop: '0.8rem', background: '#fff7ed', borderColor: '#fed7aa' }}>
+            {checklistVisible && items.length === 0 && (
+                <div className="callout" style={{ marginTop: '0.4rem', background: '#fff7ed', borderColor: '#fed7aa' }}>
                     <p style={{ margin: 0, color: '#9a3412' }}>
-                        Debug: no checklist items loaded for instance {instanceId}. Check linked task template/sections/items.
+                        No checklist items found for this task.
                     </p>
                 </div>
             )}
