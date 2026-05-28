@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { getTodaysTasks, getTaskInstanceItems } from '@/lib/tasks'
+import { getTodaysTasks, getTaskInstanceChecklistData } from '@/lib/tasks'
 import { TaskDisplayList } from '@/app/dashboard/tasks/TaskDisplayList'
 
 export default async function CrewTasksPage() {
@@ -25,10 +25,14 @@ export default async function CrewTasksPage() {
     const tasks = await getTodaysTasks(employee.id)
 
     // Fetch the actual task checklist items for each assigned instance for the day
-    const tasksWithItems = await Promise.all(tasks.map(async (t: any) => ({
-        ...t,
-        items: await getTaskInstanceItems(t.task_assignment_instance_id)
-    })))
+    const tasksWithItems = await Promise.all(tasks.map(async (t: any) => {
+        const checklist = await getTaskInstanceChecklistData(t.task_assignment_instance_id)
+        return {
+            ...t,
+            items: checklist.items,
+            checklistDebug: checklist.debug
+        }
+    }))
 
     return (
         <div className="page">
@@ -53,6 +57,7 @@ export default async function CrewTasksPage() {
                                 displayMode={t.display_mode}
                                 initialItems={t.items}
                                 initialStatus={t.status}
+                                checklistDebug={t.checklistDebug}
                             />
                         </div>
                     ))}

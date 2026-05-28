@@ -19,13 +19,21 @@ export function TaskDisplayList({
     employeeId,
     displayMode,
     initialItems,
-    initialStatus
+    initialStatus,
+    checklistDebug
 }: {
     instanceId: string,
     employeeId: string,
     displayMode: string,
     initialItems: any[],
-    initialStatus: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
+    initialStatus: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened',
+    checklistDebug?: {
+        instanceId: string
+        taskAssignmentId: string | null
+        taskTemplateId: string | null
+        sectionCount: number
+        itemCount: number
+    }
 }) {
     const [items, setItems] = useState(initialItems)
     const [instanceStatus, setInstanceStatus] = useState(initialStatus)
@@ -210,6 +218,15 @@ export function TaskDisplayList({
                     <p style={{ margin: 0, color: '#9a3412' }}>
                         No checklist items found for this task.
                     </p>
+                    {checklistDebug && (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#7c2d12', display: 'grid', gap: '0.2rem' }}>
+                            <div><strong>instance id:</strong> {checklistDebug.instanceId}</div>
+                            <div><strong>task_assignment_id:</strong> {checklistDebug.taskAssignmentId || 'null'}</div>
+                            <div><strong>resolved task_template_id:</strong> {checklistDebug.taskTemplateId || 'null'}</div>
+                            <div><strong>sections found:</strong> {checklistDebug.sectionCount}</div>
+                            <div><strong>items found:</strong> {checklistDebug.itemCount}</div>
+                        </div>
+                    )}
                 </div>
             )}
 

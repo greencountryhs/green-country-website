@@ -3,6 +3,7 @@
 import {
     adminSetTaskInstanceStatus,
     cancelTaskInstanceAsAdmin,
+    deleteTaskInstance,
     getTaskInstanceEditPayload,
     rescheduleTaskInstance,
     reassignTaskInstance,
@@ -112,6 +113,15 @@ export function InstanceActions({
         if (!confirmed) return
         startTransition(async () => {
             await cancelTaskInstanceAsAdmin(instanceId, 'Task cancelled from scheduler/admin UI')
+            setShowPopover(false)
+        })
+    }
+
+    function handleDeleteTask() {
+        const confirmed = window.confirm('Delete this task instance? This removes it from scheduler/day board. Ad-hoc tasks are safest to delete.')
+        if (!confirmed) return
+        startTransition(async () => {
+            await deleteTaskInstance(instanceId)
             setShowPopover(false)
         })
     }
@@ -246,6 +256,7 @@ export function InstanceActions({
                             <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>👥 Reassign</button>
                             <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>📅 Push to Tomorrow</button>
                             <button onClick={handleCancelTask} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem', color: '#b91c1c' }}>🛑 Cancel Task</button>
+                            <button onClick={handleDeleteTask} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem', color: '#7f1d1d' }}>🗑 Remove Task</button>
                             <div style={{ marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                                 <label style={{ fontSize: '0.7rem', color: '#475569' }}>Status</label>
                                 <select

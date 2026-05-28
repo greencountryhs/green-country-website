@@ -248,6 +248,11 @@ export async function getTodaysTasks(employeeId: string) {
 }
 
 export async function getTaskInstanceItems(instanceId: string) {
+    const result = await getTaskInstanceChecklistData(instanceId)
+    return result.items
+}
+
+export async function getTaskInstanceChecklistData(instanceId: string) {
     const supabase = await createClient()
     const admin = createAdminClient()
 
@@ -267,7 +272,18 @@ export async function getTaskInstanceItems(instanceId: string) {
         .eq('id', instanceId)
         .single()
 
-    if (!instance) return []
+    if (!instance) {
+        return {
+            items: [],
+            debug: {
+                instanceId,
+                taskAssignmentId: null,
+                taskTemplateId: null,
+                sectionCount: 0,
+                itemCount: 0
+            }
+        }
+    }
 
     const logs = (instance.task_item_logs || []).slice().sort((a: any, b: any) => {
         const aTs = a?.logged_at ? new Date(a.logged_at).getTime() : 0
@@ -318,11 +334,20 @@ export async function getTaskInstanceItems(instanceId: string) {
                 })
             }
         }
-        return items
+        return {
+            items,
+            debug: {
+                instanceId: instance.id,
+                taskAssignmentId: instance.task_assignment_id || null,
+                taskTemplateId: templateId,
+                sectionCount: sections.length,
+                itemCount: items.length
+            }
+        }
     } else {
         const latestLog = logs.find((l: any) => l.task_template_item_id === null)
         const isCompleted = latestLog?.status === 'completed'
-        return [{
+        const items = [{
             id: 'custom',
             content: instance.title,
             section: null,
@@ -330,6 +355,16 @@ export async function getTaskInstanceItems(instanceId: string) {
             completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
             completedAt: isCompleted ? latestLog?.logged_at || null : null
         }]
+        return {
+            items,
+            debug: {
+                instanceId: instance.id,
+                taskAssignmentId: instance.task_assignment_id || null,
+                taskTemplateId: null,
+                sectionCount: 0,
+                itemCount: items.length
+            }
+        }
     }
 }
 
