@@ -8,12 +8,17 @@ export function TaskCardWithDrawer({
     inst, 
     displayTitle, 
     typeLabel, 
-    assignmentLabel 
+    assignmentLabel,
+    editorData
 }: { 
     inst: any, 
     displayTitle: string, 
     typeLabel: string, 
-    assignmentLabel: string 
+    assignmentLabel: string,
+    editorData: {
+        employees: Array<{ id: string, display_name: string }>,
+        roles: Array<{ id: string, name: string }>
+    }
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -203,7 +208,12 @@ export function TaskCardWithDrawer({
 
                         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem' }}>Quick Actions</h3>
-                            <InstanceActions instanceId={inst.id} currentTargets={inst.targets} currentStatus={inst.status} />
+                            <InstanceActions
+                                instanceId={inst.id}
+                                currentTargets={inst.targets}
+                                currentStatus={inst.status}
+                                editorData={editorData}
+                            />
                         </div>
                     </div>
                 </div>, 

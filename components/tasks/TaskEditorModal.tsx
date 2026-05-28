@@ -94,27 +94,39 @@ export function TaskEditorModal({
             background: 'rgba(0,0,0,0.5)', display: 'flex',
             alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
-            <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <form
+                onSubmit={handleSubmit}
+                onKeyDown={handleKeyDown}
+                className="card"
+                style={{
+                    width: '100%',
+                    maxWidth: '500px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    background: '#ffffff',
+                    color: '#111827'
+                }}
+            >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0 }}>Add Custom Task</h2>
-                    <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1 }}>&times;</button>
+                    <h2 style={{ margin: 0, color: '#111827' }}>Add Custom Task</h2>
+                    <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1, color: '#334155' }}>&times;</button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Date</label>
+                            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, color: '#111827' }}>Date</label>
                             <input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} required style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }} />
                         </div>
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Task Name</label>
+                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, color: '#111827' }}>Task Name</label>
                         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Unload specific truck" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }} />
                     </div>
 
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, color: '#111827' }}>
                             Checklist items (optional, one per line)
                         </label>
                         <textarea
@@ -130,17 +142,17 @@ export function TaskEditorModal({
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Assignment Target</label>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#111827' }}>Assignment Target</label>
                         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#111827' }}>
                                 <input type="radio" checked={targetType === 'all_crew'} onChange={() => setTargetType('all_crew')} />
                                 All Crew
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#111827' }}>
                                 <input type="radio" checked={targetType === 'employee'} onChange={() => setTargetType('employee')} />
                                 Specific Person
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#111827' }}>
                                 <input type="radio" checked={targetType === 'role'} onChange={() => setTargetType('role')} />
                                 Role
                             </label>

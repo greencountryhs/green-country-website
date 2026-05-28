@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/utils/supabase/service'
 
 /**
  * Strict terminology for scheduling tasks
@@ -248,6 +249,7 @@ export async function getTodaysTasks(employeeId: string) {
 
 export async function getTaskInstanceItems(instanceId: string) {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     const { data: instance } = await supabase
         .from('task_assignment_instances')
@@ -255,9 +257,6 @@ export async function getTaskInstanceItems(instanceId: string) {
             id,
             title,
             task_assignment_id,
-            task_assignments (
-                task_template_id
-            ),
             task_item_logs (
                 task_template_item_id,
                 status,
@@ -276,14 +275,15 @@ export async function getTaskInstanceItems(instanceId: string) {
         return bTs - aTs
     })
 
-    // Normalise task_assignments: Supabase may return an array or a single object
-    // depending on the generated types in use. Support both safely.
-    type TaskAssignmentShape = { task_template_id: string | null }
-    const raw = instance.task_assignments as TaskAssignmentShape | TaskAssignmentShape[] | null
-    const taskAssignment: TaskAssignmentShape | null = Array.isArray(raw)
-        ? (raw[0] ?? null)
-        : raw
-    const templateId = taskAssignment?.task_template_id ?? null
+    let templateId: string | null = null
+    if (instance.task_assignment_id) {
+        const { data: assignmentRow } = await admin
+            .from('task_assignments')
+            .select('task_template_id')
+            .eq('id', instance.task_assignment_id)
+            .maybeSingle()
+        templateId = assignmentRow?.task_template_id ?? null
+    }
 
     if (templateId) {
         const { data: sectionsRaw } = await supabase

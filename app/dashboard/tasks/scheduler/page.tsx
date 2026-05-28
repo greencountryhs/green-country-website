@@ -160,6 +160,7 @@ export default async function WeekSchedulerPage({ searchParams }: { searchParams
                                             displayTitle={displayTitle}
                                             typeLabel={typeLabel}
                                             assignmentLabel={assignmentLabel}
+                                            editorData={editorData}
                                         />
                                     )
                                 })}

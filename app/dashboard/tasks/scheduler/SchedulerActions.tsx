@@ -7,11 +7,16 @@ import { useTransition } from 'react'
 export function InstanceActions({
     instanceId,
     currentTargets,
-    currentStatus
+    currentStatus,
+    editorData
 }: {
     instanceId: string,
     currentTargets: any[],
-    currentStatus?: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
+    currentStatus?: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened',
+    editorData: {
+        employees: Array<{ id: string, display_name: string }>,
+        roles: Array<{ id: string, name: string }>
+    }
 }) {
     const [isPending, startTransition] = useTransition()
     const [showPopover, setShowPopover] = useState(false)
@@ -20,6 +25,8 @@ export function InstanceActions({
         currentStatus || 'scheduled'
     )
     const [statusNote, setStatusNote] = useState('')
+    const [targetType, setTargetType] = useState<'employee' | 'role' | 'all_crew'>('all_crew')
+    const [targetId, setTargetId] = useState('')
 
     function handleShift(direction: any, days: number = 1) {
         startTransition(async () => {
@@ -30,9 +37,6 @@ export function InstanceActions({
 
     function handleReassign(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
-        const fd = new FormData(e.currentTarget)
-        const targetType = fd.get('targetType') as string
-        const targetId = fd.get('targetId') as string // UUID or empty
         startTransition(async () => {
             await reassignTaskInstance(instanceId, targetType, targetId)
             setReassignMode(false)
@@ -58,13 +62,50 @@ export function InstanceActions({
                     {reassignMode ? (
                         <form onSubmit={handleReassign} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.75rem' }}>Target Type</label>
-                            <select name="targetType" defaultValue="all_crew" style={{ fontSize: '0.75rem', padding: '0.2rem' }}>
+                            <select
+                                value={targetType}
+                                onChange={(e) => {
+                                    setTargetType(e.target.value as any)
+                                    setTargetId('')
+                                }}
+                                style={{ fontSize: '0.75rem', padding: '0.2rem' }}
+                            >
                                 <option value="employee">Specific Employee</option>
                                 <option value="role">Specific Role</option>
                                 <option value="all_crew">All Crew</option>
                             </select>
-                            <label style={{ fontSize: '0.75rem' }}>Target ID (if specific)</label>
-                            <input type="text" name="targetId" placeholder="UUID" style={{ fontSize: '0.75rem', padding: '0.2rem' }} />
+                            {targetType === 'employee' && (
+                                <>
+                                    <label style={{ fontSize: '0.75rem' }}>Employee</label>
+                                    <select
+                                        value={targetId}
+                                        onChange={(e) => setTargetId(e.target.value)}
+                                        required
+                                        style={{ fontSize: '0.75rem', padding: '0.2rem' }}
+                                    >
+                                        <option value="" disabled>-- Select Employee --</option>
+                                        {editorData.employees.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.display_name}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            {targetType === 'role' && (
+                                <>
+                                    <label style={{ fontSize: '0.75rem' }}>Role</label>
+                                    <select
+                                        value={targetId}
+                                        onChange={(e) => setTargetId(e.target.value)}
+                                        required
+                                        style={{ fontSize: '0.75rem', padding: '0.2rem' }}
+                                    >
+                                        <option value="" disabled>-- Select Role --</option>
+                                        {editorData.roles.map(role => (
+                                            <option key={role.id} value={role.id}>{role.name}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
                             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                                 <button type="submit" disabled={isPending} className="cta primary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Save</button>
                                 <button type="button" onClick={() => setReassignMode(false)} className="link small" style={{ fontSize: '0.75rem' }}>Cancel</button>
@@ -72,7 +113,7 @@ export function InstanceActions({
                         </form>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <button onClick={() => { alert('Edit Task modal integration coming soon!'); setShowPopover(false) }} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>✎ Edit Task</button>
+                            <button disabled title="Edit task is not implemented yet." className="link small" style={{ textAlign: 'left', fontSize: '0.75rem', opacity: 0.6, cursor: 'not-allowed' }}>✎ Edit Task (not available yet)</button>
                             <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>👥 Reassign</button>
                             <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>📅 Push to Tomorrow</button>
                             <div style={{ marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>

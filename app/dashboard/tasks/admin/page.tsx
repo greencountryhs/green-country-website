@@ -18,7 +18,7 @@ export default async function AdminTasksPage() {
 
     const editorData = await getTaskEditorData()
 
-    // Fetch today's active instances for the admin Today Board
+    // Fetch full-day instances for admin Today Board (all statuses)
     const { data: instances, error } = await supabase
         .from('task_assignment_instances')
         .select(`
@@ -44,7 +44,6 @@ export default async function AdminTasksPage() {
             task_item_logs ( id, status, logged_at )
         `)
         .eq('assignment_date', todayStr)
-        .or('status.is.null,status.in.(scheduled,active,reopened)')
         .order('created_at', { ascending: true })
 
     if (error) console.error("Error fetching admin Today Board:", error)
@@ -66,7 +65,7 @@ export default async function AdminTasksPage() {
 
             {(!instances || instances.length === 0) ? (
                 <div className="card callout">
-                    <p style={{ margin: 0, color: 'var(--muted)', textAlign: 'center' }}>No active task instances found for today.</p>
+                    <p style={{ margin: 0, color: 'var(--muted)', textAlign: 'center' }}>No task instances found for today.</p>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
@@ -134,7 +133,12 @@ export default async function AdminTasksPage() {
                                     </div>
                                 </div>
                                 <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                                    <InstanceActions instanceId={inst.id} currentTargets={actionTargets} currentStatus={inst.status} />
+                                    <InstanceActions
+                                        instanceId={inst.id}
+                                        currentTargets={actionTargets}
+                                        currentStatus={inst.status}
+                                        editorData={editorData}
+                                    />
                                 </div>
                             </div>
                         )
