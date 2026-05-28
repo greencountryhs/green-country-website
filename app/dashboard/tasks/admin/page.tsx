@@ -122,7 +122,7 @@ export default async function AdminTasksPage() {
                                     </div>
                                 </div>
                                 <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-                                    <InstanceActions instanceId={inst.id} currentTargets={actionTargets} />
+                                    <InstanceActions instanceId={inst.id} currentTargets={actionTargets} currentStatus={inst.status} />
                                 </div>
                             </div>
                         )

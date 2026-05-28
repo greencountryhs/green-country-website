@@ -1,8 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { logTaskItem } from '@/lib/tasks/actions'
-import { SubmitButton } from '@/components/submit-button'
+import {
+    completeTaskInstanceAsCrew,
+    logTaskItem,
+    requestTaskReopenAsCrew,
+    undoTaskCompletionAsCrew
+} from '@/lib/tasks/actions'
 
 /**
  * Shell component for rendering full, section, or single flow tasks.
@@ -13,14 +17,20 @@ export function TaskDisplayList({
     instanceId,
     employeeId,
     displayMode,
-    initialItems
+    initialItems,
+    initialStatus
 }: {
     instanceId: string,
     employeeId: string,
     displayMode: string,
-    initialItems: any[]
+    initialItems: any[],
+    initialStatus: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
 }) {
     const [items, setItems] = useState(initialItems)
+    const [instanceStatus, setInstanceStatus] = useState(initialStatus)
+    const [busy, setBusy] = useState(false)
+    const [message, setMessage] = useState<string | null>(null)
+    const [reopenReason, setReopenReason] = useState('')
 
     async function handleComplete(itemId: string) {
         // Optimistic UI update
@@ -29,6 +39,53 @@ export function TaskDisplayList({
         // Backend persistent log
         const actualLogId = itemId === 'custom' ? null : itemId;
         await logTaskItem(instanceId, actualLogId)
+    }
+
+    async function markTaskComplete() {
+        const confirmed = window.confirm(
+            'Mark this task complete? This will notify the owner that the task is finished.'
+        )
+        if (!confirmed) return
+
+        setBusy(true)
+        setMessage(null)
+        try {
+            await completeTaskInstanceAsCrew(instanceId, 'Crew marked task complete from checklist UI')
+            setInstanceStatus('completed')
+            setMessage('Task marked complete. Undo is available for a short window.')
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Failed to mark task complete')
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    async function undoCompletion() {
+        setBusy(true)
+        setMessage(null)
+        try {
+            const result = await undoTaskCompletionAsCrew(instanceId)
+            setInstanceStatus(result.newStatus as any)
+            setMessage('Completion undone successfully.')
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Undo failed')
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    async function requestReopen() {
+        setBusy(true)
+        setMessage(null)
+        try {
+            await requestTaskReopenAsCrew(instanceId, reopenReason || undefined)
+            setMessage('Reopen request sent to owner/admin.')
+            setReopenReason('')
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Failed to request reopen')
+        } finally {
+            setBusy(false)
+        }
     }
 
     const progressPercent = items.length > 0 
@@ -42,6 +99,20 @@ export function TaskDisplayList({
 
     return (
         <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                <span className="small">Instance status</span>
+                <span
+                    className="badge"
+                    style={{
+                        background: instanceStatus === 'completed' ? '#dcfce7' : '#f3f4f6',
+                        color: instanceStatus === 'completed' ? '#166534' : '#334155',
+                        border: 'none',
+                        textTransform: 'capitalize'
+                    }}
+                >
+                    {instanceStatus}
+                </span>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--muted)' }}>
                 <span>Mode: <strong>{displayMode.toUpperCase()}</strong></span>
                 <span>{progressPercent}% Complete</span>
@@ -60,7 +131,7 @@ export function TaskDisplayList({
                                 type="checkbox"
                                 checked={item.completed}
                                 onChange={() => handleComplete(item.id)}
-                                disabled={item.completed}
+                                disabled={item.completed || instanceStatus === 'completed'}
                                 style={{ width: '20px', height: '20px' }}
                             />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -87,6 +158,7 @@ export function TaskDisplayList({
                             <button
                                 onClick={() => handleComplete(activeItem.id)}
                                 className="cta"
+                                disabled={instanceStatus === 'completed'}
                                 style={{ width: '100%' }}
                             >
                                 Complete Step
@@ -98,6 +170,43 @@ export function TaskDisplayList({
                         </div>
                     )}
                 </div>
+            )}
+
+            {allCompleted && instanceStatus !== 'completed' && (
+                <div style={{ marginTop: '1rem' }}>
+                    <button className="cta" onClick={markTaskComplete} disabled={busy}>
+                        Mark Task Complete
+                    </button>
+                </div>
+            )}
+
+            {instanceStatus === 'completed' && (
+                <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <div>
+                        <button className="cta secondary" onClick={undoCompletion} disabled={busy}>
+                            Undo Complete
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                            type="text"
+                            placeholder="Reason for reopen request (optional)"
+                            value={reopenReason}
+                            onChange={(e) => setReopenReason(e.target.value)}
+                            style={{ flex: 1, minWidth: '220px', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        />
+                        <button className="cta secondary" onClick={requestReopen} disabled={busy}>
+                            Request Reopen
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {message && (
+                <p className="small" style={{ marginTop: '0.7rem' }}>
+                    {message}
+                </p>
             )}
         </div>
     )

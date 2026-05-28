@@ -1,13 +1,25 @@
 'use client'
 
-import { rescheduleTaskInstance, reassignTaskInstance } from '@/lib/tasks/actions'
+import { adminSetTaskInstanceStatus, rescheduleTaskInstance, reassignTaskInstance } from '@/lib/tasks/actions'
 import { useState } from 'react'
 import { useTransition } from 'react'
 
-export function InstanceActions({ instanceId, currentTargets }: { instanceId: string, currentTargets: any[] }) {
+export function InstanceActions({
+    instanceId,
+    currentTargets,
+    currentStatus
+}: {
+    instanceId: string,
+    currentTargets: any[],
+    currentStatus?: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
+}) {
     const [isPending, startTransition] = useTransition()
     const [showPopover, setShowPopover] = useState(false)
     const [reassignMode, setReassignMode] = useState(false)
+    const [nextStatus, setNextStatus] = useState<'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'>(
+        currentStatus || 'scheduled'
+    )
+    const [statusNote, setStatusNote] = useState('')
 
     function handleShift(direction: any, days: number = 1) {
         startTransition(async () => {
@@ -24,6 +36,14 @@ export function InstanceActions({ instanceId, currentTargets }: { instanceId: st
         startTransition(async () => {
             await reassignTaskInstance(instanceId, targetType, targetId)
             setReassignMode(false)
+            setShowPopover(false)
+        })
+    }
+
+    function handleStatusUpdate() {
+        startTransition(async () => {
+            await adminSetTaskInstanceStatus(instanceId, nextStatus, statusNote || undefined)
+            setStatusNote('')
             setShowPopover(false)
         })
     }
@@ -55,6 +75,35 @@ export function InstanceActions({ instanceId, currentTargets }: { instanceId: st
                             <button onClick={() => { alert('Edit Task modal integration coming soon!'); setShowPopover(false) }} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>✎ Edit Task</button>
                             <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>👥 Reassign</button>
                             <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>📅 Push to Tomorrow</button>
+                            <div style={{ marginTop: '0.4rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                <label style={{ fontSize: '0.7rem', color: '#475569' }}>Status</label>
+                                <select
+                                    value={nextStatus}
+                                    onChange={(e) => setNextStatus(e.target.value as any)}
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem' }}
+                                >
+                                    <option value="scheduled">Scheduled</option>
+                                    <option value="active">In Progress</option>
+                                    <option value="reopened">Reopened</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <input
+                                    type="text"
+                                    value={statusNote}
+                                    onChange={(e) => setStatusNote(e.target.value)}
+                                    placeholder="Reason (optional)"
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem' }}
+                                />
+                                <button
+                                    onClick={handleStatusUpdate}
+                                    disabled={isPending}
+                                    className="cta secondary"
+                                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem' }}
+                                >
+                                    Save Status
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

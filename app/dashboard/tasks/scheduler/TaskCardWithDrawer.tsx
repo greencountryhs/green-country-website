@@ -203,7 +203,7 @@ export function TaskCardWithDrawer({
 
                         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
                             <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem' }}>Quick Actions</h3>
-                            <InstanceActions instanceId={inst.id} currentTargets={inst.targets} />
+                            <InstanceActions instanceId={inst.id} currentTargets={inst.targets} currentStatus={inst.status} />
                         </div>
                     </div>
                 </div>, 

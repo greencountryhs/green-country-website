@@ -52,6 +52,7 @@ export default async function CrewTasksPage() {
                                 employeeId={employee.id}
                                 displayMode={t.display_mode}
                                 initialItems={t.items}
+                                initialStatus={t.status}
                             />
                         </div>
                     ))}

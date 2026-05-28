@@ -37,7 +37,7 @@ export type WeekAssignmentInstance = {
     assignmentDate: string
     title: string
     displayMode: "full" | "section" | "single" | null
-    status: "scheduled" | "active" | "completed" | "cancelled"
+    status: "scheduled" | "active" | "completed" | "cancelled" | "reopened"
     isOverride: boolean
     sequenceId: string | null
     sequenceOrder: number | null
@@ -70,7 +70,7 @@ type TaskAssignmentInstanceRow = {
     assignment_date: string
     title: string
     display_mode: "full" | "section" | "single" | null
-    status: "scheduled" | "active" | "completed" | "cancelled"
+    status: "scheduled" | "active" | "completed" | "cancelled" | "reopened"
     is_override: boolean
     sequence_id: string | null
     sequence_order: number | null
@@ -223,6 +223,7 @@ export async function getTodaysTasks(employeeId: string) {
             )
         `)
         .eq('assignment_date', todayStr)
+        .in('status', ['scheduled', 'active', 'reopened'])
 
     if (error) console.error("Error fetching today's tasks:", error)
 

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/service'
 import { revalidatePath } from 'next/cache'
 import { ScheduleDirection } from './index'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
@@ -30,7 +31,127 @@ async function getCurrentEmployeeId() {
         throw new Error('Unauthorized: employee profile not found')
     }
 
-    return { supabase, employeeId: employee.id }
+    return { supabase, employeeId: employee.id, userId: user.id }
+}
+
+async function getCurrentUserId() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        throw new Error('Unauthorized: user not authenticated')
+    }
+    return user.id
+}
+
+type TaskInstanceStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
+
+const CREW_UNDO_WINDOW_MINUTES = 10
+
+async function assertCrewAssignedToInstance(supabase: any, instanceId: string, employeeId: string) {
+    const { data, error } = await supabase
+        .from('task_assignment_instance_targets')
+        .select('id, target_type, employee_id, role_id')
+        .eq('task_assignment_instance_id', instanceId)
+
+    if (error) {
+        throw new Error('Could not validate task assignment access')
+    }
+
+    const targets = data || []
+    const hasAllCrewTarget = targets.some((t: any) => t.target_type === 'all_crew')
+    const hasEmployeeTarget = targets.some((t: any) => t.target_type === 'employee' && t.employee_id === employeeId)
+
+    let hasRoleTarget = false
+    if (!hasAllCrewTarget && !hasEmployeeTarget) {
+        const roleIds = targets
+            .filter((t: any) => t.target_type === 'role' && t.role_id)
+            .map((t: any) => t.role_id)
+        if (roleIds.length > 0) {
+            const { data: employeeRoles } = await supabase
+                .from('employee_roles')
+                .select('role_id')
+                .eq('employee_id', employeeId)
+                .in('role_id', roleIds)
+            hasRoleTarget = (employeeRoles || []).length > 0
+        }
+    }
+
+    if (!hasAllCrewTarget && !hasEmployeeTarget && !hasRoleTarget) {
+        throw new Error('Unauthorized: task is not assigned to this crew member')
+    }
+}
+
+async function updateTaskInstanceStatusWithAudit({
+    instanceId,
+    nextStatus,
+    expectedCurrentStatus,
+    changedByUserId,
+    changedByEmployeeId,
+    note
+}: {
+    instanceId: string
+    nextStatus: TaskInstanceStatus
+    expectedCurrentStatus?: TaskInstanceStatus
+    changedByUserId: string
+    changedByEmployeeId?: string | null
+    note?: string | null
+}) {
+    const admin = createAdminClient()
+
+    const { data: current, error: currentErr } = await admin
+        .from('task_assignment_instances')
+        .select('id, status')
+        .eq('id', instanceId)
+        .single()
+
+    if (currentErr || !current) {
+        throw new Error('Task instance not found')
+    }
+
+    const previousStatus = current.status as TaskInstanceStatus
+
+    if (expectedCurrentStatus && previousStatus !== expectedCurrentStatus) {
+        throw new Error(`Task status changed by someone else. Current status: ${previousStatus}`)
+    }
+
+    if (previousStatus === nextStatus) {
+        return { previousStatus, newStatus: nextStatus, changed: false }
+    }
+
+    const updateQuery = admin
+        .from('task_assignment_instances')
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq('id', instanceId)
+        .eq('status', previousStatus)
+        .select('id')
+
+    const { data: updatedRows, error: updateErr } = await updateQuery
+
+    if (updateErr || !updatedRows || updatedRows.length === 0) {
+        throw new Error('Failed to update task status. Please refresh and try again.')
+    }
+
+    const { error: historyErr } = await admin
+        .from('task_instance_status_history')
+        .insert([{
+            task_assignment_instance_id: instanceId,
+            previous_status: previousStatus,
+            new_status: nextStatus,
+            changed_by_user_id: changedByUserId,
+            changed_by_employee_id: changedByEmployeeId || null,
+            change_note: note || null
+        }])
+
+    if (historyErr) {
+        throw new Error('Status updated, but failed to write audit history: ' + historyErr.message)
+    }
+
+    revalidatePath('/dashboard/crew')
+    revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard/tasks/admin')
+    revalidatePath('/dashboard/tasks/scheduler')
+
+    return { previousStatus, newStatus: nextStatus, changed: true }
 }
 
 export async function logTaskItem(instanceId: string, templateItemId: string | null) {
@@ -49,6 +170,104 @@ export async function logTaskItem(instanceId: string, templateItemId: string | n
     if (error) console.error("Error logging task item:", error)
     revalidatePath('/dashboard/crew')
     return { error }
+}
+
+export async function completeTaskInstanceAsCrew(instanceId: string, note?: string) {
+    const { supabase, employeeId, userId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
+
+    return updateTaskInstanceStatusWithAudit({
+        instanceId,
+        nextStatus: 'completed',
+        changedByUserId: userId,
+        changedByEmployeeId: employeeId,
+        note: note || 'Crew marked task complete'
+    })
+}
+
+export async function undoTaskCompletionAsCrew(instanceId: string) {
+    const { supabase, employeeId, userId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
+
+    const admin = createAdminClient()
+    const { data: latestHistory, error: historyErr } = await admin
+        .from('task_instance_status_history')
+        .select('id, previous_status, new_status, changed_by_user_id, created_at')
+        .eq('task_assignment_instance_id', instanceId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (historyErr) {
+        throw new Error('Could not load status history for undo')
+    }
+
+    if (!latestHistory || latestHistory.new_status !== 'completed') {
+        throw new Error('Undo unavailable: latest task status is not a completion action')
+    }
+
+    if (latestHistory.changed_by_user_id !== userId) {
+        throw new Error('Undo window expired or task was completed by another user')
+    }
+
+    const completedAt = new Date(latestHistory.created_at).getTime()
+    const windowMs = CREW_UNDO_WINDOW_MINUTES * 60 * 1000
+    if (Date.now() - completedAt > windowMs) {
+        throw new Error(`Undo window has passed (${CREW_UNDO_WINDOW_MINUTES} minutes)`)
+    }
+
+    const revertStatus = (latestHistory.previous_status || 'active') as TaskInstanceStatus
+
+    return updateTaskInstanceStatusWithAudit({
+        instanceId,
+        expectedCurrentStatus: 'completed',
+        nextStatus: revertStatus,
+        changedByUserId: userId,
+        changedByEmployeeId: employeeId,
+        note: `Crew undo within ${CREW_UNDO_WINDOW_MINUTES} minute window`
+    })
+}
+
+export async function requestTaskReopenAsCrew(instanceId: string, note?: string) {
+    const { supabase, employeeId, userId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
+
+    const admin = createAdminClient()
+    const { error } = await admin
+        .from('task_status_change_requests')
+        .insert([{
+            task_assignment_instance_id: instanceId,
+            requested_by_user_id: userId,
+            requested_by_employee_id: employeeId,
+            requested_status: 'reopened',
+            note: note || null,
+            status: 'pending'
+        }])
+
+    if (error) {
+        throw new Error('Failed to submit reopen request: ' + error.message)
+    }
+
+    revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard/crew')
+    revalidatePath('/dashboard/tasks/admin')
+    return { success: true }
+}
+
+export async function adminSetTaskInstanceStatus(
+    instanceId: string,
+    nextStatus: TaskInstanceStatus,
+    note?: string
+) {
+    await assertCanManageTasks()
+    const userId = await getCurrentUserId()
+
+    return updateTaskInstanceStatusWithAudit({
+        instanceId,
+        nextStatus,
+        changedByUserId: userId,
+        note: note || 'Task status updated by admin/manager'
+    })
 }
 
 export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
