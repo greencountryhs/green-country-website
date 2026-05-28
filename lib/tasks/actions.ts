@@ -450,7 +450,7 @@ export async function createCustomTaskInstance(
 
         const checklistRows = normalizedChecklist.map((content, idx) => ({
             section_id: section.id,
-            content,
+            title: content,
             sort_order: idx + 1
         }))
 

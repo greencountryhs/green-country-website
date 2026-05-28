@@ -286,37 +286,36 @@ export async function getTaskInstanceItems(instanceId: string) {
     const templateId = taskAssignment?.task_template_id ?? null
 
     if (templateId) {
-        const { data: sections } = await supabase
+        const { data: sectionsRaw } = await supabase
             .from('task_template_sections')
             .select(`
                 id,
                 title,
                 task_template_items (
                     id,
-                    content,
+                    title,
                     sort_order
                 )
             `)
             .eq('task_template_id', templateId)
             .order('sort_order')
 
+        const sections = (sectionsRaw as any[]) || []
         let items: any[] = []
-        if (sections) {
-            for (const sec of sections) {
-                const sectionItems = sec.task_template_items || []
-                sectionItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
-                for (const item of sectionItems) {
-                    const latestLog = logs.find((l: any) => l.task_template_item_id === item.id)
-                    const isCompleted = latestLog?.status === 'completed'
-                    items.push({
-                        id: item.id,
-                        content: item.content,
-                        section: sec.title,
-                        completed: isCompleted,
-                        completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
-                        completedAt: isCompleted ? latestLog?.logged_at || null : null
-                    })
-                }
+        for (const sec of sections) {
+            const sectionItems = sec.task_template_items || []
+            sectionItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
+            for (const item of sectionItems) {
+                const latestLog = logs.find((l: any) => l.task_template_item_id === item.id)
+                const isCompleted = latestLog?.status === 'completed'
+                items.push({
+                    id: item.id,
+                    content: item.title,
+                    section: sec.title,
+                    completed: isCompleted,
+                    completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
+                    completedAt: isCompleted ? latestLog?.logged_at || null : null
+                })
             }
         }
         return items
@@ -338,7 +337,7 @@ export async function getTaskEditorData() {
     const supabase = await createClient()
 
     // 1. Templates with preview data
-    const { data: rawTemplates } = await supabase
+    const { data: rawTemplatesData } = await supabase
         .from('task_templates')
         .select(`
             id, 
@@ -346,13 +345,14 @@ export async function getTaskEditorData() {
             default_display_mode,
             task_template_sections (
                 task_template_items (
-                    content,
+                    title,
                     sort_order
                 )
             )
         `)
         .order('title')
 
+    const rawTemplates = (rawTemplatesData as any[]) || []
     const templates = (rawTemplates || []).map((t: any) => {
         let allItems: any[] = []
         if (t.task_template_sections) {
@@ -363,7 +363,7 @@ export async function getTaskEditorData() {
             })
         }
         allItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
-        const previewItems = allItems.slice(0, 3).map((i: any) => i.content)
+        const previewItems = allItems.slice(0, 3).map((i: any) => i.title)
 
         return {
             id: t.id,
