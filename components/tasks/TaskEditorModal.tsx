@@ -64,7 +64,7 @@ export function TaskEditorModal({
 
         setIsSaving(true)
         try {
-            const result = await createCustomTaskInstance(
+            await createCustomTaskInstance(
                 dateStr,
                 title.trim(),
                 'full', // custom instances default to full display mode
@@ -73,9 +73,6 @@ export function TaskEditorModal({
                 checklistItems,
                 bulkChecklist
             )
-            if (result.checklistVerification && result.checklistVerification.itemCount > 0) {
-                console.info('Checklist verification', result.checklistVerification)
-            }
             onClose()
         } catch (error: any) {
             console.error(error)
@@ -133,10 +130,6 @@ export function TaskEditorModal({
                     <h2 style={{ margin: 0, color: '#111827' }}>Add Custom Task</h2>
                     <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1, color: '#334155' }}>&times;</button>
                 </div>
-                <div style={{ marginBottom: '0.9rem', padding: '0.45rem 0.65rem', borderRadius: '6px', background: '#dbeafe', color: '#1e3a8a', fontSize: '0.82rem', fontWeight: 600 }}>
-                    Checklist builder v2 active
-                </div>
-
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>

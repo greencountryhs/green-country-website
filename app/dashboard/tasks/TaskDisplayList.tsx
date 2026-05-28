@@ -21,38 +21,27 @@ export function TaskDisplayList({
     employeeId,
     displayMode,
     initialItems,
-    initialStatus,
-    checklistDebug
+    initialStatus
 }: {
     instanceId: string,
     employeeId: string,
     displayMode: string,
     initialItems: any[],
-    initialStatus: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened',
-    checklistDebug?: {
-        instanceId: string
-        taskAssignmentId: string | null
-        taskTemplateId: string | null
-        sectionCount: number
-        itemCount: number
-    }
+    initialStatus: 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
 }) {
     const router = useRouter()
     const [items, setItems] = useState(initialItems)
     const [instanceStatus, setInstanceStatus] = useState(initialStatus)
-    const [checklistDebugState, setChecklistDebugState] = useState(checklistDebug)
     const [busy, setBusy] = useState(false)
 
     useEffect(() => {
         setItems(initialItems)
         setInstanceStatus(initialStatus)
-        setChecklistDebugState(checklistDebug)
-    }, [initialItems, initialStatus, checklistDebug, instanceId])
+    }, [initialItems, initialStatus, instanceId])
 
     async function refreshChecklistFromServer() {
         const refreshed = await fetchCrewTaskChecklist(instanceId)
         setItems(refreshed.items)
-        setChecklistDebugState(refreshed.debug)
         return refreshed
     }
     const [message, setMessage] = useState<string | null>(null)
@@ -232,20 +221,11 @@ export function TaskDisplayList({
                 </div>
             )}
 
-            {checklistVisible && items.length === 0 && (checklistDebugState?.itemCount ?? 0) === 0 && (
+            {checklistVisible && items.length === 0 && (
                 <div className="callout" style={{ marginTop: '0.4rem', background: '#fff7ed', borderColor: '#fed7aa' }}>
                     <p style={{ margin: 0, color: '#9a3412' }}>
-                        No checklist items found for this task.
+                        No checklist items for this task.
                     </p>
-                    {checklistDebugState && (
-                        <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#7c2d12', display: 'grid', gap: '0.2rem' }}>
-                            <div><strong>instance id:</strong> {checklistDebugState.instanceId}</div>
-                            <div><strong>task_assignment_id:</strong> {checklistDebugState.taskAssignmentId || 'null'}</div>
-                            <div><strong>resolved task_template_id:</strong> {checklistDebugState.taskTemplateId || 'null'}</div>
-                            <div><strong>sections found:</strong> {checklistDebugState.sectionCount}</div>
-                            <div><strong>items found:</strong> {checklistDebugState.itemCount}</div>
-                        </div>
-                    )}
                 </div>
             )}
 

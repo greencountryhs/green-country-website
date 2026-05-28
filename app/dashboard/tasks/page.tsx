@@ -31,8 +31,7 @@ export default async function CrewTasksPage() {
         const checklist = await getTaskInstanceChecklistData(t.task_assignment_instance_id)
         return {
             ...t,
-            items: checklist.items,
-            checklistDebug: checklist.debug
+            items: checklist.items
         }
     }))
 
@@ -59,7 +58,6 @@ export default async function CrewTasksPage() {
                                 displayMode={t.display_mode}
                                 initialItems={t.items}
                                 initialStatus={t.status}
-                                checklistDebug={t.checklistDebug}
                             />
                         </div>
                     ))}

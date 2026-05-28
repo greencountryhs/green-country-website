@@ -25,7 +25,6 @@ export function CrewDashboardShell({ employeeId, tasks = [] }: { employeeId: str
                                 displayMode={t.display_mode}
                                 initialItems={t.items}
                                 initialStatus={t.status}
-                                checklistDebug={t.checklistDebug}
                             />
                         </div>
                     ))

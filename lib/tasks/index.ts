@@ -275,16 +275,7 @@ export async function getTaskInstanceChecklistData(instanceId: string) {
         .single()
 
     if (!instance) {
-        return {
-            items: [],
-            debug: {
-                instanceId,
-                taskAssignmentId: null,
-                taskTemplateId: null,
-                sectionCount: 0,
-                itemCount: 0
-            }
-        }
+        return { items: [] }
     }
 
     const logs = (instance.task_item_logs || []).slice().sort((a: any, b: any) => {
@@ -341,16 +332,7 @@ export async function getTaskInstanceChecklistData(instanceId: string) {
                 })
             }
         }
-        return {
-            items,
-            debug: {
-                instanceId: instance.id,
-                taskAssignmentId: instance.task_assignment_id || null,
-                taskTemplateId: templateId,
-                sectionCount: sections.length,
-                itemCount: items.length
-            }
-        }
+        return { items }
     } else {
         const latestLog = logs.find((l: any) => l.task_template_item_id === null)
         const isCompleted = latestLog?.status === 'completed'
@@ -362,16 +344,7 @@ export async function getTaskInstanceChecklistData(instanceId: string) {
             completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
             completedAt: isCompleted ? latestLog?.logged_at || null : null
         }]
-        return {
-            items,
-            debug: {
-                instanceId: instance.id,
-                taskAssignmentId: instance.task_assignment_id || null,
-                taskTemplateId: null,
-                sectionCount: 0,
-                itemCount: items.length
-            }
-        }
+        return { items }
     }
 }
 
