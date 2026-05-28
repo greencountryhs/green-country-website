@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/service'
 import { revalidatePath } from 'next/cache'
 import { mergeChecklistInputs } from './checklistInputs'
-import { ScheduleDirection } from './index'
+import { getTaskInstanceChecklistData, ScheduleDirection } from './index'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 
@@ -375,6 +375,13 @@ export async function completeTaskInstanceAsCrew(instanceId: string, note?: stri
         changedByEmployeeId: employeeId,
         note: note || 'Crew marked task complete'
     })
+}
+
+/** Refetch checklist for crew after start/refresh; enforces assignment access then reads template via admin. */
+export async function fetchCrewTaskChecklist(instanceId: string) {
+    const { supabase, employeeId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
+    return getTaskInstanceChecklistData(instanceId)
 }
 
 export async function startTaskInstanceAsCrew(instanceId: string, note?: string) {

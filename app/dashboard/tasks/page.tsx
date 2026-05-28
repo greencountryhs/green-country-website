@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { getTodaysTasks, getTaskInstanceChecklistData } from '@/lib/tasks'
 import { TaskDisplayList } from '@/app/dashboard/tasks/TaskDisplayList'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CrewTasksPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/utils/supabase/service'
 
 /**
@@ -253,6 +254,7 @@ export async function getTaskInstanceItems(instanceId: string) {
 }
 
 export async function getTaskInstanceChecklistData(instanceId: string) {
+    noStore()
     const supabase = await createClient()
     const admin = createAdminClient()
 
@@ -302,7 +304,8 @@ export async function getTaskInstanceChecklistData(instanceId: string) {
     }
 
     if (templateId) {
-        const { data: sectionsRaw } = await supabase
+        // Template sections/items are admin-only in RLS; crew may view assigned instances but not template tables via user client.
+        const { data: sectionsRaw, error: sectionsErr } = await admin
             .from('task_template_sections')
             .select(`
                 id,
@@ -315,6 +318,10 @@ export async function getTaskInstanceChecklistData(instanceId: string) {
             `)
             .eq('task_template_id', templateId)
             .order('sort_order')
+
+        if (sectionsErr) {
+            throw new Error('Failed to load checklist sections: ' + sectionsErr.message)
+        }
 
         const sections = (sectionsRaw as any[]) || []
         let items: any[] = []

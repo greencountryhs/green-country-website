@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { CrewDashboardShell } from '@/components/dashboard/CrewDashboardShell'
 import { getTodaysTasks, getTaskInstanceChecklistData } from '@/lib/tasks'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CrewDashboardPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
