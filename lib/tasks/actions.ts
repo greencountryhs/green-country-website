@@ -3,6 +3,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/service'
 import { revalidatePath } from 'next/cache'
+import { mergeChecklistInputs } from './checklistInputs'
 import { ScheduleDirection } from './index'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
@@ -46,6 +47,171 @@ async function getCurrentUserId() {
 type TaskInstanceStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'reopened'
 
 const CREW_UNDO_WINDOW_MINUTES = 10
+
+function normalizeChecklistTitles(
+    checklistItems: string[],
+    bulkText = '',
+    singleFallbackTitle?: string
+): string[] {
+    const merged = mergeChecklistInputs(checklistItems, bulkText)
+    if (merged.length > 0) return merged
+    if (singleFallbackTitle?.trim()) return [singleFallbackTitle.trim()]
+    return []
+}
+
+async function createChecklistTemplateAndItems(
+    admin: ReturnType<typeof createAdminClient>,
+    taskTitle: string,
+    checklistTitles: string[]
+) {
+    const normalized = normalizeChecklistTitles(checklistTitles)
+    if (normalized.length === 0) {
+        return { templateId: null, sectionId: null, itemCount: 0 }
+    }
+
+    const { data: template, error: templateErr } = await admin
+        .from('task_templates')
+        .insert([{
+            title: `${taskTitle.trim()} (Checklist)`,
+            description: 'Checklist generated from scheduler task builder',
+            default_display_mode: 'full'
+        }])
+        .select('id')
+        .single()
+
+    if (templateErr || !template) {
+        throw new Error(`Failed to create checklist template: ${templateErr.message}`)
+    }
+
+    const templateId = template.id
+
+    const { data: section, error: sectionErr } = await admin
+        .from('task_template_sections')
+        .insert([{
+            task_template_id: templateId,
+            title: 'Checklist',
+            sort_order: 1
+        }])
+        .select('id')
+        .single()
+
+    if (sectionErr || !section) {
+        throw new Error(`Failed to create checklist section: ${sectionErr.message}`)
+    }
+
+    const rows = normalized.map((title, idx) => ({
+        section_id: section.id,
+        title,
+        sort_order: idx + 1
+    }))
+
+    const { error: itemsErr } = await admin.from('task_template_items').insert(rows)
+
+    if (itemsErr) {
+        throw new Error(`Failed to create checklist items: ${itemsErr.message}`)
+    }
+
+    return {
+        templateId,
+        sectionId: section.id,
+        itemCount: rows.length
+    }
+}
+
+async function assertTemplateHasChecklist(
+    admin: ReturnType<typeof createAdminClient>,
+    templateId: string,
+    expectedItemCount: number
+) {
+    if (expectedItemCount === 0) return
+
+    const { data: sections, error: sectionErr } = await admin
+        .from('task_template_sections')
+        .select('id')
+        .eq('task_template_id', templateId)
+
+    if (sectionErr) {
+        throw new Error(`Failed to verify checklist sections: ${sectionErr.message}`)
+    }
+
+    const sectionIds = (sections || []).map((row: { id: string }) => row.id)
+    if (sectionIds.length === 0) {
+        throw new Error(
+            `Checklist template was created but no sections were saved (template_id=${templateId}).`
+        )
+    }
+
+    const { data: items, error: itemErr } = await admin
+        .from('task_template_items')
+        .select('id')
+        .in('section_id', sectionIds)
+
+    if (itemErr) {
+        throw new Error(`Failed to verify checklist items: ${itemErr.message}`)
+    }
+
+    const itemCount = (items || []).length
+    if (itemCount < expectedItemCount) {
+        throw new Error(
+            `Checklist items were not saved completely (expected ${expectedItemCount}, saved ${itemCount}, template_id=${templateId}).`
+        )
+    }
+}
+
+export async function getTaskChecklistVerification(instanceId: string) {
+    await assertCanManageTasks()
+    const admin = createAdminClient()
+
+    const { data: instance, error: instanceErr } = await admin
+        .from('task_assignment_instances')
+        .select('id, title, task_assignment_id, status')
+        .eq('id', instanceId)
+        .single()
+
+    if (instanceErr || !instance) {
+        throw new Error('Task instance not found')
+    }
+
+    let templateId: string | null = null
+    if (instance.task_assignment_id) {
+        const { data: assignment } = await admin
+            .from('task_assignments')
+            .select('task_template_id')
+            .eq('id', instance.task_assignment_id)
+            .maybeSingle()
+        templateId = assignment?.task_template_id ?? null
+    }
+
+    let sections: Array<{ id: string, title: string, sort_order: number }> | null = null
+    if (templateId) {
+        const { data } = await admin
+            .from('task_template_sections')
+            .select('id, title, sort_order')
+            .eq('task_template_id', templateId)
+            .order('sort_order')
+        sections = data
+    }
+
+    const sectionIds = (sections || []).map((row) => row.id)
+    let items: Array<{ id: string, title: string, sort_order: number, section_id: string }> = []
+    if (sectionIds.length > 0) {
+        const { data } = await admin
+            .from('task_template_items')
+            .select('id, title, sort_order, section_id')
+            .in('section_id', sectionIds)
+            .order('sort_order')
+        items = data || []
+    }
+
+    return {
+        instanceId: instance.id,
+        assignmentId: instance.task_assignment_id,
+        templateId,
+        sectionCount: sectionIds.length,
+        itemCount: items.length,
+        itemTitles: items.map((row) => row.title)
+    }
+}
 
 async function assertCrewAssignedToInstance(supabase: any, instanceId: string, employeeId: string) {
     const { data, error } = await supabase
@@ -404,6 +570,7 @@ export async function updateTaskInstanceDetailsAsAdmin(params: {
     targetType: 'employee' | 'role' | 'all_crew'
     targetId?: string
     checklistItems: string[]
+    bulkChecklistText?: string
 }) {
     await assertCanManageTasks()
     const admin = createAdminClient()
@@ -414,7 +581,8 @@ export async function updateTaskInstanceDetailsAsAdmin(params: {
         title,
         targetType,
         targetId,
-        checklistItems
+        checklistItems,
+        bulkChecklistText = ''
     } = params
 
     const trimmedTitle = title.trim()
@@ -424,7 +592,7 @@ export async function updateTaskInstanceDetailsAsAdmin(params: {
         throw new Error(`Target ID is required for ${targetType}`)
     }
 
-    const normalizedChecklist = checklistItems.map(i => i.trim()).filter(Boolean)
+    const normalizedChecklist = normalizeChecklistTitles(checklistItems, bulkChecklistText)
 
     const { data: instance, error: instanceErr } = await admin
         .from('task_assignment_instances')
@@ -461,42 +629,22 @@ export async function updateTaskInstanceDetailsAsAdmin(params: {
     }
 
     let templateId: string | null = null
+    if (assignmentId) {
+        const { data: existingAssignment } = await admin
+            .from('task_assignments')
+            .select('task_template_id')
+            .eq('id', assignmentId)
+            .maybeSingle()
+        templateId = existingAssignment?.task_template_id ?? null
+    }
+
     if (normalizedChecklist.length > 0) {
-        const { data: template, error: templateErr } = await admin
-            .from('task_templates')
-            .insert([{
-                title: `${trimmedTitle} (Edited Checklist)`,
-                description: 'Task checklist edited from scheduler',
-                default_display_mode: 'full'
-            }])
-            .select('id')
-            .single()
-        if (templateErr || !template) {
-            throw new Error('Failed to create edited checklist template: ' + templateErr?.message)
+        const created = await createChecklistTemplateAndItems(admin, trimmedTitle, normalizedChecklist)
+        if (!created.templateId) {
+            throw new Error('Checklist template was not created.')
         }
-        templateId = template.id
-
-        const { data: section, error: sectionErr } = await admin
-            .from('task_template_sections')
-            .insert([{
-                task_template_id: templateId,
-                title: 'Checklist',
-                sort_order: 1
-            }])
-            .select('id')
-            .single()
-        if (sectionErr || !section) {
-            throw new Error('Failed to create checklist section: ' + sectionErr?.message)
-        }
-
-        const { error: itemsErr } = await admin
-            .from('task_template_items')
-            .insert(normalizedChecklist.map((itemTitle, idx) => ({
-                section_id: section.id,
-                title: itemTitle,
-                sort_order: idx + 1
-            })))
-        if (itemsErr) throw new Error('Failed to save checklist items: ' + itemsErr.message)
+        templateId = created.templateId
+        await assertTemplateHasChecklist(admin, templateId, normalizedChecklist.length)
     }
 
     const { error: assignmentErr } = await admin
@@ -549,7 +697,15 @@ export async function updateTaskInstanceDetailsAsAdmin(params: {
     revalidatePath('/dashboard/tasks/admin')
     revalidatePath('/dashboard/tasks')
     revalidatePath('/dashboard/crew')
-    return { success: true }
+
+    const checklistVerification = await getTaskChecklistVerification(instanceId)
+    if (normalizedChecklist.length > 0 && checklistVerification.itemCount === 0) {
+        throw new Error(
+            'Task saved but checklist items are missing in the database. Re-open Edit Task and save checklist again.'
+        )
+    }
+
+    return { success: true, checklistVerification }
 }
 
 export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
@@ -632,117 +788,100 @@ export async function createCustomTaskInstance(
     displayMode: 'full' | 'single' | 'section' = 'full',
     targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
     targetId?: string,
-    checklistItems: string[] = []
+    checklistItems: string[] = [],
+    bulkChecklistText = ''
 ) {
     await assertCanManageTasks()
-    if (!title || !title.trim()) throw new Error("Task title is required.")
-    if (!dateStr) throw new Error("Assignment date is required.")
-    if (targetType === 'employee' && !targetId) throw new Error("Employee target requires an employee ID.")
-    if (targetType === 'role' && !targetId) throw new Error("Role target requires a role ID.")
+    const trimmedTitle = title?.trim() || ''
+    if (!trimmedTitle) throw new Error('Task title is required.')
+    if (!dateStr) throw new Error('Assignment date is required.')
+    if (targetType === 'employee' && !targetId) throw new Error('Employee target requires an employee ID.')
+    if (targetType === 'role' && !targetId) throw new Error('Role target requires a role ID.')
 
-    const supabase = await createClient()
-
-    const normalizedChecklist = checklistItems.map(i => i.trim()).filter(Boolean)
+    const admin = createAdminClient()
+    const normalizedChecklist = normalizeChecklistTitles(checklistItems, bulkChecklistText)
 
     let adHocTemplateId: string | null = null
     if (normalizedChecklist.length > 0) {
-        const { data: template, error: templateErr } = await supabase
-            .from('task_templates')
-            .insert([{
-                title: `${title.trim()} (Checklist)`,
-                description: 'Ad hoc checklist generated from scheduler custom task',
-                default_display_mode: 'full'
-            }])
-            .select('id')
-            .single()
-
-        if (templateErr || !template) {
-            throw new Error('Failed to create checklist template: ' + templateErr?.message)
+        const created = await createChecklistTemplateAndItems(admin, trimmedTitle, normalizedChecklist)
+        if (!created.templateId) {
+            throw new Error('Checklist template was not created.')
         }
-        adHocTemplateId = template.id
-
-        const { data: section, error: sectionErr } = await supabase
-            .from('task_template_sections')
-            .insert([{
-                task_template_id: adHocTemplateId,
-                title: 'Checklist',
-                sort_order: 1
-            }])
-            .select('id')
-            .single()
-
-        if (sectionErr || !section) {
-            throw new Error('Failed to create checklist section: ' + sectionErr?.message)
-        }
-
-        const checklistRows = normalizedChecklist.map((content, idx) => ({
-            section_id: section.id,
-            title: content,
-            sort_order: idx + 1
-        }))
-
-        const { error: itemsErr } = await supabase
-            .from('task_template_items')
-            .insert(checklistRows)
-
-        if (itemsErr) {
-            throw new Error('Failed to create checklist items: ' + itemsErr.message)
-        }
+        adHocTemplateId = created.templateId
+        await assertTemplateHasChecklist(admin, adHocTemplateId, normalizedChecklist.length)
     }
 
-    // 1. Create the parent ad hoc task assignment (legacy tracking baseline)
-    const { data: assignment, error: assignErr } = await supabase
+    const resolvedDisplayMode = normalizedChecklist.length > 0 ? 'full' : displayMode
+
+    const { data: assignment, error: assignErr } = await admin
         .from('task_assignments')
         .insert([{
             task_template_id: adHocTemplateId,
             assignment_date: dateStr,
-            title: title.trim(),
-            display_mode: normalizedChecklist.length > 0 ? 'full' : displayMode
+            title: trimmedTitle,
+            display_mode: resolvedDisplayMode
         }])
         .select('id')
         .single()
 
-    if (assignErr || !assignment) throw new Error("Failed to create ad hoc parent assignment: " + assignErr?.message)
+    if (assignErr || !assignment) {
+        throw new Error('Failed to create ad hoc parent assignment: ' + assignErr?.message)
+    }
 
-    // 2. Create the child instance
-    const { data: instance, error: instanceErr } = await supabase
+    const { data: instance, error: instanceErr } = await admin
         .from('task_assignment_instances')
         .insert([{
             task_assignment_id: assignment.id,
             assignment_date: dateStr,
-            title: title.trim(),
-            display_mode: normalizedChecklist.length > 0 ? 'full' : displayMode,
+            title: trimmedTitle,
+            display_mode: resolvedDisplayMode,
             is_override: true,
             status: 'scheduled'
         }])
         .select('id')
         .single()
 
-    if (instanceErr || !instance) throw new Error("Failed to schedule custom task instance: " + instanceErr?.message)
+    if (instanceErr || !instance) {
+        throw new Error('Failed to schedule custom task instance: ' + instanceErr?.message)
+    }
 
-    // 3. Create the targets with error checking
     if (targetType === 'employee' && targetId) {
-        const { error } = await supabase
+        const { error } = await admin
             .from('task_assignment_instance_targets')
             .insert([{ task_assignment_instance_id: instance.id, target_type: 'employee', employee_id: targetId }])
-        if (error) throw new Error("Failed to assign employee target: " + error.message)
+        if (error) throw new Error('Failed to assign employee target: ' + error.message)
     } else if (targetType === 'role' && targetId) {
-        const { error } = await supabase
+        const { error } = await admin
             .from('task_assignment_instance_targets')
             .insert([{ task_assignment_instance_id: instance.id, target_type: 'role', role_id: targetId }])
-        if (error) throw new Error("Failed to assign role target: " + error.message)
+        if (error) throw new Error('Failed to assign role target: ' + error.message)
     } else if (targetType === 'all_crew') {
-        const { error } = await supabase
+        const { error } = await admin
             .from('task_assignment_instance_targets')
             .insert([{ task_assignment_instance_id: instance.id, target_type: 'all_crew' }])
-        if (error) throw new Error("Failed to assign all_crew target: " + error.message)
+        if (error) throw new Error('Failed to assign all_crew target: ' + error.message)
+    }
+
+    const checklistVerification = await getTaskChecklistVerification(instance.id)
+    if (normalizedChecklist.length > 0) {
+        if (checklistVerification.sectionCount === 0 || checklistVerification.itemCount === 0) {
+            throw new Error(
+                `Task was created but checklist data is missing (sections=${checklistVerification.sectionCount}, items=${checklistVerification.itemCount}).`
+            )
+        }
+        if (checklistVerification.itemCount < normalizedChecklist.length) {
+            throw new Error(
+                `Task was created but only ${checklistVerification.itemCount} of ${normalizedChecklist.length} checklist items were saved.`
+            )
+        }
     }
 
     revalidatePath('/dashboard/tasks/scheduler')
     revalidatePath('/dashboard/tasks')
     revalidatePath('/dashboard/tasks/admin')
+    revalidatePath('/dashboard/crew')
 
-    return { success: true, instanceId: instance.id }
+    return { success: true, instanceId: instance.id, checklistVerification }
 }
 
 export async function createSchedulerInstance(

@@ -4,6 +4,7 @@ import {
     adminSetTaskInstanceStatus,
     cancelTaskInstanceAsAdmin,
     deleteTaskInstance,
+    getTaskChecklistVerification,
     getTaskInstanceEditPayload,
     rescheduleTaskInstance,
     reassignTaskInstance,
@@ -41,6 +42,7 @@ export function InstanceActions({
     const [editTargetType, setEditTargetType] = useState<'employee' | 'role' | 'all_crew'>('all_crew')
     const [editTargetId, setEditTargetId] = useState('')
     const [editChecklistItems, setEditChecklistItems] = useState<string[]>([''])
+    const [editBulkChecklist, setEditBulkChecklist] = useState('')
     const [editLoaded, setEditLoaded] = useState(false)
 
     function handleShift(direction: any, days: number = 1) {
@@ -87,22 +89,49 @@ export function InstanceActions({
             setEditTargetType(payload.targetType)
             setEditTargetId(payload.targetId || '')
             setEditChecklistItems(payload.checklistItems.length > 0 ? payload.checklistItems : [''])
+            setEditBulkChecklist('')
             setEditLoaded(true)
             setEditMode(true)
+        })
+    }
+
+    function handleVerifyChecklist() {
+        startTransition(async () => {
+            try {
+                const verification = await getTaskChecklistVerification(instanceId)
+                alert(
+                    [
+                        `instance id: ${verification.instanceId}`,
+                        `assignment id: ${verification.assignmentId ?? '—'}`,
+                        `template id: ${verification.templateId ?? '—'}`,
+                        `sections: ${verification.sectionCount}`,
+                        `items: ${verification.itemCount}`,
+                        verification.itemTitles.length
+                            ? `titles:\n${verification.itemTitles.map((t) => `• ${t}`).join('\n')}`
+                            : 'titles: (none)'
+                    ].join('\n')
+                )
+            } catch (err: any) {
+                alert(err?.message || 'Could not verify checklist')
+            }
         })
     }
 
     function handleEditSave(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         startTransition(async () => {
-            await updateTaskInstanceDetailsAsAdmin({
+            const result = await updateTaskInstanceDetailsAsAdmin({
                 instanceId,
                 dateStr: editDate,
                 title: editTitle,
                 targetType: editTargetType,
                 targetId: editTargetId || undefined,
-                checklistItems: editChecklistItems
+                checklistItems: editChecklistItems,
+                bulkChecklistText: editBulkChecklist
             })
+            if (result.checklistVerification?.itemCount) {
+                console.info('Checklist verification', result.checklistVerification)
+            }
             setEditMode(false)
             setShowPopover(false)
         })
@@ -242,6 +271,16 @@ export function InstanceActions({
                                     <button type="button" onClick={addEditChecklistItem} className="cta secondary" style={{ padding: '0.2rem 0.4rem', fontSize: '0.72rem', alignSelf: 'flex-start' }}>
                                         Add checklist item
                                     </button>
+                                    <textarea
+                                        value={editBulkChecklist}
+                                        onChange={(e) => setEditBulkChecklist(e.target.value)}
+                                        placeholder="Paste checklist lines (one per line)"
+                                        rows={3}
+                                        style={{ fontSize: '0.75rem', padding: '0.25rem', marginTop: '0.25rem' }}
+                                    />
+                                    <p className="small" style={{ margin: 0, fontSize: '0.68rem', color: '#64748b' }}>
+                                        Pasted lines are included on save even if you do not click Add.
+                                    </p>
                                 </>
                             )}
 
@@ -253,6 +292,7 @@ export function InstanceActions({
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <button onClick={openEditMode} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>✎ Edit Task</button>
+                            <button onClick={handleVerifyChecklist} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>🔍 Verify Checklist</button>
                             <button onClick={() => setReassignMode(true)} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>👥 Reassign</button>
                             <button onClick={() => handleShift('Push Back 1 Day')} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem' }}>📅 Push to Tomorrow</button>
                             <button onClick={handleCancelTask} disabled={isPending} className="link small" style={{ textAlign: 'left', fontSize: '0.75rem', color: '#b91c1c' }}>🛑 Cancel Task</button>

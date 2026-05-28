@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { mergeChecklistInputs } from '@/lib/tasks/checklistInputs'
 import { createCustomTaskInstance } from '@/lib/tasks/actions'
 
 export type TaskEditorEmployee = { id: string, display_name: string }
@@ -63,15 +64,18 @@ export function TaskEditorModal({
 
         setIsSaving(true)
         try {
-            const normalizedChecklist = checklistItems.map(line => line.trim()).filter(Boolean)
-            await createCustomTaskInstance(
+            const result = await createCustomTaskInstance(
                 dateStr,
                 title.trim(),
                 'full', // custom instances default to full display mode
                 targetType,
                 targetId,
-                normalizedChecklist
+                checklistItems,
+                bulkChecklist
             )
+            if (result.checklistVerification && result.checklistVerification.itemCount > 0) {
+                console.info('Checklist verification', result.checklistVerification)
+            }
             onClose()
         } catch (error: any) {
             console.error(error)
@@ -100,15 +104,9 @@ export function TaskEditorModal({
     }
 
     function pasteChecklistLines() {
-        const parsed = bulkChecklist
-            .split('\n')
-            .map(line => line.trim())
-            .filter(Boolean)
+        const parsed = mergeChecklistInputs([], bulkChecklist)
         if (parsed.length === 0) return
-        setChecklistItems((prev) => {
-            const nonEmpty = prev.map(i => i.trim()).filter(Boolean)
-            return [...nonEmpty, ...parsed]
-        })
+        setChecklistItems((prev) => [...mergeChecklistInputs(prev, ''), ...parsed])
         setBulkChecklist('')
     }
 
@@ -193,7 +191,7 @@ export function TaskEditorModal({
                             </div>
                         </div>
                         <p className="small" style={{ marginTop: '0.35rem' }}>
-                            Leave checklist empty for a single-step task.
+                            Row inputs and pasted lines are both saved on submit. Leave checklist empty for a single-step task.
                         </p>
                     </div>
 
