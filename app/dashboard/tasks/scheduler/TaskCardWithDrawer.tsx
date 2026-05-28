@@ -196,7 +196,7 @@ export function TaskCardWithDrawer({
                         <div style={{ marginBottom: '2rem' }}>
                             <h3 style={{ fontSize: '1rem', fontWeight: 600, borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Task Details</h3>
                             <div style={{ fontSize: '0.9rem', color: 'var(--foreground)' }}>
-                                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Date:</strong> {new Date(inst.assignmentDate).toLocaleDateString()}</p>
+                                <p style={{ margin: '0 0 0.5rem 0' }}><strong>Date:</strong> {new Date(inst.assignmentDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
                                 <p style={{ margin: '0 0 0.5rem 0' }}><strong>Items Logged:</strong> {inst.completedLogCount} of {inst.logCount}</p>
                             </div>
                         </div>

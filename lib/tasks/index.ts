@@ -270,7 +270,11 @@ export async function getTaskInstanceItems(instanceId: string) {
 
     if (!instance) return []
 
-    const logs = instance.task_item_logs || []
+    const logs = (instance.task_item_logs || []).slice().sort((a: any, b: any) => {
+        const aTs = a?.logged_at ? new Date(a.logged_at).getTime() : 0
+        const bTs = b?.logged_at ? new Date(b.logged_at).getTime() : 0
+        return bTs - aTs
+    })
 
     // Normalise task_assignments: Supabase may return an array or a single object
     // depending on the generated types in use. Support both safely.
@@ -302,28 +306,30 @@ export async function getTaskInstanceItems(instanceId: string) {
                 const sectionItems = sec.task_template_items || []
                 sectionItems.sort((a: any, b: any) => a.sort_order - b.sort_order)
                 for (const item of sectionItems) {
-                    const log = logs.find((l: any) => l.task_template_item_id === item.id && l.status === 'completed')
+                    const latestLog = logs.find((l: any) => l.task_template_item_id === item.id)
+                    const isCompleted = latestLog?.status === 'completed'
                     items.push({
                         id: item.id,
                         content: item.content,
                         section: sec.title,
-                        completed: !!log,
-                        completedBy: (log?.employees as any)?.display_name || null,
-                        completedAt: log?.logged_at || null
+                        completed: isCompleted,
+                        completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
+                        completedAt: isCompleted ? latestLog?.logged_at || null : null
                     })
                 }
             }
         }
         return items
     } else {
-        const log = logs.find((l: any) => l.task_template_item_id === null && l.status === 'completed')
+        const latestLog = logs.find((l: any) => l.task_template_item_id === null)
+        const isCompleted = latestLog?.status === 'completed'
         return [{
             id: 'custom',
             content: instance.title,
             section: null,
-            completed: !!log,
-            completedBy: (log?.employees as any)?.display_name || null,
-            completedAt: log?.logged_at || null
+            completed: isCompleted,
+            completedBy: isCompleted ? (latestLog?.employees as any)?.display_name || null : null,
+            completedAt: isCompleted ? latestLog?.logged_at || null : null
         }]
     }
 }

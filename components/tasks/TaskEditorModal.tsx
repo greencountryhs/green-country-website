@@ -29,6 +29,7 @@ export function TaskEditorModal({
     // Target
     const [targetType, setTargetType] = useState<'employee' | 'role' | 'all_crew'>('all_crew')
     const [targetId, setTargetId] = useState('')
+    const [checklistRaw, setChecklistRaw] = useState('')
 
     const [isSaving, setIsSaving] = useState(false)
 
@@ -39,6 +40,7 @@ export function TaskEditorModal({
             setTitle('')
             setTargetType('all_crew')
             setTargetId('')
+            setChecklistRaw('')
         }
     }, [isOpen, defaultDateStr])
 
@@ -59,12 +61,17 @@ export function TaskEditorModal({
 
         setIsSaving(true)
         try {
+            const checklistItems = checklistRaw
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean)
             await createCustomTaskInstance(
                 dateStr,
                 title.trim(),
                 'full', // custom instances default to full display mode
                 targetType,
-                targetId
+                targetId,
+                checklistItems
             )
             onClose()
         } catch (error: any) {
@@ -104,6 +111,22 @@ export function TaskEditorModal({
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Task Name</label>
                         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Unload specific truck" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }} />
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                            Checklist items (optional, one per line)
+                        </label>
+                        <textarea
+                            value={checklistRaw}
+                            onChange={(e) => setChecklistRaw(e.target.value)}
+                            placeholder={"Example:\nUnload truck\nSort materials\nSweep bay"}
+                            rows={5}
+                            style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff', resize: 'vertical' }}
+                        />
+                        <p className="small" style={{ marginTop: '0.35rem' }}>
+                            If blank, this task acts as a single-item checklist.
+                        </p>
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>

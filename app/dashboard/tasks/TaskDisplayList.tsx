@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import {
     completeTaskInstanceAsCrew,
-    logTaskItem,
     requestTaskReopenAsCrew,
+    startTaskInstanceAsCrew,
+    toggleTaskItemStatus,
     undoTaskCompletionAsCrew
 } from '@/lib/tasks/actions'
 
@@ -31,28 +32,47 @@ export function TaskDisplayList({
     const [busy, setBusy] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
     const [reopenReason, setReopenReason] = useState('')
+    const [showCompleteDialog, setShowCompleteDialog] = useState(false)
+    const [completionNote, setCompletionNote] = useState('')
 
-    async function handleComplete(itemId: string) {
+    async function handleToggleItem(itemId: string, nextCompleted: boolean) {
+        if (instanceStatus === 'completed') return
         // Optimistic UI update
-        setItems(items.map(i => i.id === itemId ? { ...i, completed: true } : i))
-
-        // Backend persistent log
-        const actualLogId = itemId === 'custom' ? null : itemId;
-        await logTaskItem(instanceId, actualLogId)
+        const previous = items
+        setItems(items.map(i => i.id === itemId ? { ...i, completed: nextCompleted } : i))
+        setMessage(null)
+        try {
+            const actualLogId = itemId === 'custom' ? null : itemId
+            await toggleTaskItemStatus(instanceId, actualLogId, nextCompleted)
+        } catch (error) {
+            setItems(previous)
+            setMessage(error instanceof Error ? error.message : 'Failed to update checklist item')
+        }
     }
 
-    async function markTaskComplete() {
-        const confirmed = window.confirm(
-            'Mark this task complete? This will notify the owner that the task is finished.'
-        )
-        if (!confirmed) return
-
+    async function startTask() {
         setBusy(true)
         setMessage(null)
         try {
-            await completeTaskInstanceAsCrew(instanceId, 'Crew marked task complete from checklist UI')
+            await startTaskInstanceAsCrew(instanceId)
+            setInstanceStatus('active')
+            setMessage('Task marked in progress.')
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Failed to start task')
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    async function markTaskComplete() {
+        setBusy(true)
+        setMessage(null)
+        try {
+            await completeTaskInstanceAsCrew(instanceId, completionNote || 'Crew marked task complete from checklist UI')
             setInstanceStatus('completed')
             setMessage('Task marked complete. Undo is available for a short window.')
+            setShowCompleteDialog(false)
+            setCompletionNote('')
         } catch (error) {
             setMessage(error instanceof Error ? error.message : 'Failed to mark task complete')
         } finally {
@@ -130,8 +150,8 @@ export function TaskDisplayList({
                             <input
                                 type="checkbox"
                                 checked={item.completed}
-                                onChange={() => handleComplete(item.id)}
-                                disabled={item.completed || instanceStatus === 'completed'}
+                                onChange={(e) => handleToggleItem(item.id, e.target.checked)}
+                                disabled={instanceStatus === 'completed'}
                                 style={{ width: '20px', height: '20px' }}
                             />
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -140,7 +160,7 @@ export function TaskDisplayList({
                                 </span>
                                 {item.completed && item.completedBy && (
                                     <span style={{ fontSize: '0.8rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                                        Completed by {item.completedBy} on {new Date(item.completedAt).toLocaleDateString()}
+                                        Completed by {item.completedBy} on {new Date(item.completedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                                     </span>
                                 )}
                             </div>
@@ -156,7 +176,7 @@ export function TaskDisplayList({
                         <div style={{ padding: '1.5rem', background: '#ffffff', border: '2px solid var(--primary)', borderRadius: '8px', textAlign: 'center' }}>
                             <h3 style={{ margin: '0 0 1.5rem 0' }}>{activeItem.content}</h3>
                             <button
-                                onClick={() => handleComplete(activeItem.id)}
+                                onClick={() => handleToggleItem(activeItem.id, true)}
                                 className="cta"
                                 disabled={instanceStatus === 'completed'}
                                 style={{ width: '100%' }}
@@ -172,9 +192,17 @@ export function TaskDisplayList({
                 </div>
             )}
 
+            {(instanceStatus === 'scheduled' || instanceStatus === 'reopened') && (
+                <div style={{ marginTop: '1rem' }}>
+                    <button className="cta secondary" onClick={startTask} disabled={busy}>
+                        Start Task
+                    </button>
+                </div>
+            )}
+
             {allCompleted && instanceStatus !== 'completed' && (
                 <div style={{ marginTop: '1rem' }}>
-                    <button className="cta" onClick={markTaskComplete} disabled={busy}>
+                    <button className="cta" onClick={() => setShowCompleteDialog(true)} disabled={busy}>
                         Mark Task Complete
                     </button>
                 </div>
@@ -207,6 +235,39 @@ export function TaskDisplayList({
                 <p className="small" style={{ marginTop: '0.7rem' }}>
                     {message}
                 </p>
+            )}
+
+            {showCompleteDialog && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div className="card" style={{ width: 'min(92vw, 520px)' }}>
+                        <h3 style={{ marginTop: 0 }}>Mark this task complete?</h3>
+                        <p className="small" style={{ marginTop: '0.3rem' }}>
+                            This will notify the owner that the task is finished.
+                        </p>
+                        <label style={{ display: 'block', fontWeight: 600, marginTop: '0.8rem' }}>
+                            Completion note (optional)
+                        </label>
+                        <textarea
+                            value={completionNote}
+                            onChange={(e) => setCompletionNote(e.target.value)}
+                            rows={3}
+                            style={{ width: '100%', marginTop: '0.4rem', padding: '0.6rem', border: '1px solid var(--border)', borderRadius: '8px' }}
+                            placeholder="Anything the owner should know?"
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '1rem' }}>
+                            <button className="cta secondary" onClick={() => setShowCompleteDialog(false)} disabled={busy}>Cancel</button>
+                            <button className="cta" onClick={markTaskComplete} disabled={busy}>Confirm Complete</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

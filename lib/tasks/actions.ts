@@ -172,6 +172,32 @@ export async function logTaskItem(instanceId: string, templateItemId: string | n
     return { error }
 }
 
+export async function toggleTaskItemStatus(
+    instanceId: string,
+    templateItemId: string | null,
+    isCompleted: boolean
+) {
+    const { supabase, employeeId: actorEmployeeId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, actorEmployeeId)
+
+    const { error } = await supabase
+        .from('task_item_logs')
+        .insert([{
+            task_assignment_instance_id: instanceId,
+            task_template_item_id: templateItemId,
+            employee_id: actorEmployeeId,
+            status: isCompleted ? 'completed' : 'unchecked',
+            logged_at: new Date().toISOString()
+        }])
+
+    if (error) {
+        throw new Error('Failed to update checklist item: ' + error.message)
+    }
+    revalidatePath('/dashboard/crew')
+    revalidatePath('/dashboard/tasks')
+    return { success: true }
+}
+
 export async function completeTaskInstanceAsCrew(instanceId: string, note?: string) {
     const { supabase, employeeId, userId } = await getCurrentEmployeeId()
     await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
@@ -182,6 +208,35 @@ export async function completeTaskInstanceAsCrew(instanceId: string, note?: stri
         changedByUserId: userId,
         changedByEmployeeId: employeeId,
         note: note || 'Crew marked task complete'
+    })
+}
+
+export async function startTaskInstanceAsCrew(instanceId: string, note?: string) {
+    const { supabase, employeeId, userId } = await getCurrentEmployeeId()
+    await assertCrewAssignedToInstance(supabase, instanceId, employeeId)
+
+    const { data: current, error } = await supabase
+        .from('task_assignment_instances')
+        .select('status')
+        .eq('id', instanceId)
+        .single()
+
+    if (error || !current) {
+        throw new Error('Task instance not found')
+    }
+
+    const currentStatus = current.status as TaskInstanceStatus | null
+    if (!currentStatus || (currentStatus !== 'scheduled' && currentStatus !== 'reopened')) {
+        throw new Error(`Task can only be started from Scheduled or Reopened. Current: ${currentStatus || 'unknown'}`)
+    }
+
+    return updateTaskInstanceStatusWithAudit({
+        instanceId,
+        expectedCurrentStatus: currentStatus,
+        nextStatus: 'active',
+        changedByUserId: userId,
+        changedByEmployeeId: employeeId,
+        note: note || 'Crew started task'
     })
 }
 
@@ -349,7 +404,8 @@ export async function createCustomTaskInstance(
     title: string,
     displayMode: 'full' | 'single' | 'section' = 'full',
     targetType: 'employee' | 'role' | 'all_crew' = 'all_crew',
-    targetId?: string
+    targetId?: string,
+    checklistItems: string[] = []
 ) {
     await assertCanManageTasks()
     if (!title || !title.trim()) throw new Error("Task title is required.")
@@ -359,14 +415,62 @@ export async function createCustomTaskInstance(
 
     const supabase = await createClient()
 
+    const normalizedChecklist = checklistItems.map(i => i.trim()).filter(Boolean)
+
+    let adHocTemplateId: string | null = null
+    if (normalizedChecklist.length > 0) {
+        const { data: template, error: templateErr } = await supabase
+            .from('task_templates')
+            .insert([{
+                title: `${title.trim()} (Checklist)`,
+                description: 'Ad hoc checklist generated from scheduler custom task',
+                default_display_mode: 'full'
+            }])
+            .select('id')
+            .single()
+
+        if (templateErr || !template) {
+            throw new Error('Failed to create checklist template: ' + templateErr?.message)
+        }
+        adHocTemplateId = template.id
+
+        const { data: section, error: sectionErr } = await supabase
+            .from('task_template_sections')
+            .insert([{
+                task_template_id: adHocTemplateId,
+                title: 'Checklist',
+                sort_order: 1
+            }])
+            .select('id')
+            .single()
+
+        if (sectionErr || !section) {
+            throw new Error('Failed to create checklist section: ' + sectionErr?.message)
+        }
+
+        const checklistRows = normalizedChecklist.map((content, idx) => ({
+            section_id: section.id,
+            content,
+            sort_order: idx + 1
+        }))
+
+        const { error: itemsErr } = await supabase
+            .from('task_template_items')
+            .insert(checklistRows)
+
+        if (itemsErr) {
+            throw new Error('Failed to create checklist items: ' + itemsErr.message)
+        }
+    }
+
     // 1. Create the parent ad hoc task assignment (legacy tracking baseline)
     const { data: assignment, error: assignErr } = await supabase
         .from('task_assignments')
         .insert([{
-            task_template_id: null,
+            task_template_id: adHocTemplateId,
             assignment_date: dateStr,
             title: title.trim(),
-            display_mode: displayMode
+            display_mode: normalizedChecklist.length > 0 ? 'full' : displayMode
         }])
         .select('id')
         .single()
@@ -380,7 +484,7 @@ export async function createCustomTaskInstance(
             task_assignment_id: assignment.id,
             assignment_date: dateStr,
             title: title.trim(),
-            display_mode: displayMode,
+            display_mode: normalizedChecklist.length > 0 ? 'full' : displayMode,
             is_override: true,
             status: 'scheduled'
         }])

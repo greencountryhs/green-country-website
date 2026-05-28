@@ -36,12 +36,15 @@ export default async function AdminTasksPage() {
             ),
             task_assignment_instance_targets (
                 target_type,
+                employee_id,
+                role_id,
                 employees ( display_name ),
-                roles ( name )
+                roles ( label )
             ),
-            task_item_logs ( id, status )
+            task_item_logs ( id, status, logged_at )
         `)
         .eq('assignment_date', todayStr)
+        .or('status.is.null,status.in.(scheduled,active,reopened)')
         .order('created_at', { ascending: true })
 
     if (error) console.error("Error fetching admin Today Board:", error)
@@ -76,12 +79,16 @@ export default async function AdminTasksPage() {
                         const targetsLabels = targetMap.map((t: any) => {
                             if (t.target_type === 'all_crew') return 'All Crew'
                             if (t.target_type === 'employee') return t.employees?.display_name || 'Unknown Employee'
-                            if (t.target_type === 'role') return t.roles?.name || 'Unknown Role'
+                            if (t.target_type === 'role') return t.roles?.label || 'Unknown Role'
                             return 'Unknown'
                         }).join(', ') || 'Unassigned'
 
                         const logsCount = inst.task_item_logs?.length || 0
-                        const isPulled = inst.task_assignments?.assignment_date && inst.task_assignments.assignment_date !== inst.assignment_date
+                        const latestLogAt = (inst.task_item_logs || [])
+                            .map((l: any) => l.logged_at)
+                            .filter(Boolean)
+                            .sort()
+                            .at(-1)
 
                         const displayMode = inst.display_mode || inst.task_assignments?.display_mode || 'full'
                         let typeLabel = 'General Task'
@@ -113,11 +120,16 @@ export default async function AdminTasksPage() {
                                         </div>
                                         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
                                             <span style={{ color: inst.status === 'completed' ? '#166534' : 'var(--muted)', textTransform: 'capitalize' }}>
-                                                Status: {inst.status}
+                                                Status: {inst.status || 'scheduled'}
                                             </span>
                                             <span style={{ color: 'var(--muted)' }}>
                                                 Items Logged: {logsCount}
                                             </span>
+                                            {latestLogAt && (
+                                                <span style={{ color: 'var(--muted)' }}>
+                                                    Last activity: {new Date(latestLogAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
