@@ -112,6 +112,7 @@ export function TaskDisplayList({
         ? Math.round((items.filter(i => i.completed).length / items.length) * 100)
         : 100;
     const allCompleted = items.length === 0 || progressPercent === 100;
+    const checklistVisible = instanceStatus === 'active' || instanceStatus === 'completed'
 
     // For single/section reveal logic:
     const nextIncompleteIndex = items.findIndex(i => !i.completed)
@@ -143,7 +144,7 @@ export function TaskDisplayList({
             </div>
 
             {/* FULL MODE: Shows all items at once */}
-            {displayMode === 'full' && (
+            {displayMode === 'full' && checklistVisible && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {items.map(item => (
                         <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: item.completed ? '#f3f4f6' : '#ffffff', border: '1px solid var(--border)', borderRadius: '6px', opacity: item.completed ? 0.6 : 1 }}>
@@ -170,7 +171,7 @@ export function TaskDisplayList({
             )}
 
             {/* SINGLE MODE: Shows only the exact next task */}
-            {(displayMode === 'single' || displayMode === 'section') && (
+            {(displayMode === 'single' || displayMode === 'section') && checklistVisible && (
                 <div>
                     {!allCompleted ? (
                         <div style={{ padding: '1.5rem', background: '#ffffff', border: '2px solid var(--primary)', borderRadius: '8px', textAlign: 'center' }}>
@@ -192,6 +193,22 @@ export function TaskDisplayList({
                 </div>
             )}
 
+            {!checklistVisible && (instanceStatus === 'scheduled' || instanceStatus === 'reopened') && (
+                <div className="callout" style={{ marginTop: '0.8rem', background: '#f8fafc' }}>
+                    <p style={{ margin: 0, color: '#475569' }}>
+                        Start this task to reveal its checklist items.
+                    </p>
+                </div>
+            )}
+
+            {checklistVisible && items.length === 0 && process.env.NODE_ENV !== 'production' && (
+                <div className="callout" style={{ marginTop: '0.8rem', background: '#fff7ed', borderColor: '#fed7aa' }}>
+                    <p style={{ margin: 0, color: '#9a3412' }}>
+                        Debug: no checklist items loaded for instance {instanceId}. Check linked task template/sections/items.
+                    </p>
+                </div>
+            )}
+
             {(instanceStatus === 'scheduled' || instanceStatus === 'reopened') && (
                 <div style={{ marginTop: '1rem' }}>
                     <button className="cta secondary" onClick={startTask} disabled={busy}>
@@ -200,7 +217,7 @@ export function TaskDisplayList({
                 </div>
             )}
 
-            {allCompleted && instanceStatus !== 'completed' && (
+            {allCompleted && checklistVisible && instanceStatus !== 'completed' && (
                 <div style={{ marginTop: '1rem' }}>
                     <button className="cta" onClick={() => setShowCompleteDialog(true)} disabled={busy}>
                         Mark Task Complete

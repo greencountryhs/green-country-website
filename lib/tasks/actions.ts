@@ -325,6 +325,233 @@ export async function adminSetTaskInstanceStatus(
     })
 }
 
+export async function cancelTaskInstanceAsAdmin(instanceId: string, note?: string) {
+    return adminSetTaskInstanceStatus(instanceId, 'cancelled', note || 'Task cancelled by admin')
+}
+
+export async function getTaskInstanceEditPayload(instanceId: string) {
+    await assertCanManageTasks()
+    const admin = createAdminClient()
+
+    const { data: instance, error: instanceErr } = await admin
+        .from('task_assignment_instances')
+        .select(`
+            id,
+            task_assignment_id,
+            assignment_date,
+            title,
+            display_mode,
+            is_override,
+            status
+        `)
+        .eq('id', instanceId)
+        .single()
+
+    if (instanceErr || !instance) {
+        throw new Error('Task instance not found')
+    }
+
+    const { data: targets } = await admin
+        .from('task_assignment_instance_targets')
+        .select('target_type, employee_id, role_id')
+        .eq('task_assignment_instance_id', instanceId)
+
+    let taskTemplateId: string | null = null
+    if (instance.task_assignment_id) {
+        const { data: assignment } = await admin
+            .from('task_assignments')
+            .select('task_template_id')
+            .eq('id', instance.task_assignment_id)
+            .maybeSingle()
+        taskTemplateId = assignment?.task_template_id || null
+    }
+
+    let checklistItems: Array<{ id: string, title: string, sort_order: number }> = []
+    if (taskTemplateId) {
+        const { data: sections } = await admin
+            .from('task_template_sections')
+            .select(`
+                id,
+                task_template_items (
+                    id,
+                    title,
+                    sort_order
+                )
+            `)
+            .eq('task_template_id', taskTemplateId)
+
+        checklistItems = (sections || []).flatMap((sec: any) => sec.task_template_items || [])
+        checklistItems.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+    }
+
+    const target = targets?.[0]
+    return {
+        instanceId: instance.id,
+        dateStr: instance.assignment_date,
+        title: instance.title || '',
+        displayMode: instance.display_mode || 'full',
+        status: instance.status || 'scheduled',
+        targetType: target?.target_type || 'all_crew',
+        targetId: (target?.employee_id || target?.role_id || '') as string,
+        checklistItems: checklistItems.map(item => item.title)
+    }
+}
+
+export async function updateTaskInstanceDetailsAsAdmin(params: {
+    instanceId: string
+    dateStr: string
+    title: string
+    targetType: 'employee' | 'role' | 'all_crew'
+    targetId?: string
+    checklistItems: string[]
+}) {
+    await assertCanManageTasks()
+    const admin = createAdminClient()
+
+    const {
+        instanceId,
+        dateStr,
+        title,
+        targetType,
+        targetId,
+        checklistItems
+    } = params
+
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) throw new Error('Task title is required')
+    if (!dateStr) throw new Error('Assignment date is required')
+    if ((targetType === 'employee' || targetType === 'role') && !targetId) {
+        throw new Error(`Target ID is required for ${targetType}`)
+    }
+
+    const normalizedChecklist = checklistItems.map(i => i.trim()).filter(Boolean)
+
+    const { data: instance, error: instanceErr } = await admin
+        .from('task_assignment_instances')
+        .select('id, task_assignment_id')
+        .eq('id', instanceId)
+        .single()
+
+    if (instanceErr || !instance) {
+        throw new Error('Task instance not found')
+    }
+
+    let assignmentId = instance.task_assignment_id as string | null
+    if (!assignmentId) {
+        const { data: newAssignment, error: newAssignmentErr } = await admin
+            .from('task_assignments')
+            .insert([{
+                task_template_id: null,
+                assignment_date: dateStr,
+                title: trimmedTitle,
+                display_mode: 'full'
+            }])
+            .select('id')
+            .single()
+        if (newAssignmentErr || !newAssignment) {
+            throw new Error('Failed to create parent assignment: ' + newAssignmentErr?.message)
+        }
+        assignmentId = newAssignment.id
+
+        const { error: linkErr } = await admin
+            .from('task_assignment_instances')
+            .update({ task_assignment_id: assignmentId })
+            .eq('id', instanceId)
+        if (linkErr) throw new Error('Failed to link assignment to instance: ' + linkErr.message)
+    }
+
+    let templateId: string | null = null
+    if (normalizedChecklist.length > 0) {
+        const { data: template, error: templateErr } = await admin
+            .from('task_templates')
+            .insert([{
+                title: `${trimmedTitle} (Edited Checklist)`,
+                description: 'Task checklist edited from scheduler',
+                default_display_mode: 'full'
+            }])
+            .select('id')
+            .single()
+        if (templateErr || !template) {
+            throw new Error('Failed to create edited checklist template: ' + templateErr?.message)
+        }
+        templateId = template.id
+
+        const { data: section, error: sectionErr } = await admin
+            .from('task_template_sections')
+            .insert([{
+                task_template_id: templateId,
+                title: 'Checklist',
+                sort_order: 1
+            }])
+            .select('id')
+            .single()
+        if (sectionErr || !section) {
+            throw new Error('Failed to create checklist section: ' + sectionErr?.message)
+        }
+
+        const { error: itemsErr } = await admin
+            .from('task_template_items')
+            .insert(normalizedChecklist.map((itemTitle, idx) => ({
+                section_id: section.id,
+                title: itemTitle,
+                sort_order: idx + 1
+            })))
+        if (itemsErr) throw new Error('Failed to save checklist items: ' + itemsErr.message)
+    }
+
+    const { error: assignmentErr } = await admin
+        .from('task_assignments')
+        .update({
+            assignment_date: dateStr,
+            title: trimmedTitle,
+            display_mode: 'full',
+            task_template_id: templateId
+        })
+        .eq('id', assignmentId)
+    if (assignmentErr) throw new Error('Failed to update task assignment: ' + assignmentErr.message)
+
+    const { error: instanceUpdateErr } = await admin
+        .from('task_assignment_instances')
+        .update({
+            assignment_date: dateStr,
+            title: trimmedTitle,
+            display_mode: 'full',
+            is_override: true,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', instanceId)
+    if (instanceUpdateErr) throw new Error('Failed to update task instance: ' + instanceUpdateErr.message)
+
+    const { error: wipeTargetErr } = await admin
+        .from('task_assignment_instance_targets')
+        .delete()
+        .eq('task_assignment_instance_id', instanceId)
+    if (wipeTargetErr) throw new Error('Failed to clear previous targets: ' + wipeTargetErr.message)
+
+    if (targetType === 'employee' && targetId) {
+        const { error } = await admin
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'employee', employee_id: targetId }])
+        if (error) throw new Error('Failed to assign employee target: ' + error.message)
+    } else if (targetType === 'role' && targetId) {
+        const { error } = await admin
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'role', role_id: targetId }])
+        if (error) throw new Error('Failed to assign role target: ' + error.message)
+    } else {
+        const { error } = await admin
+            .from('task_assignment_instance_targets')
+            .insert([{ task_assignment_instance_id: instanceId, target_type: 'all_crew' }])
+        if (error) throw new Error('Failed to assign all crew target: ' + error.message)
+    }
+
+    revalidatePath('/dashboard/tasks/scheduler')
+    revalidatePath('/dashboard/tasks/admin')
+    revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard/crew')
+    return { success: true }
+}
+
 export async function rescheduleTaskInstance(instanceId: string, direction: ScheduleDirection, days: number = 1) {
     await assertCanManageTasks()
     const supabase = await createClient()

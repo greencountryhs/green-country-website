@@ -29,7 +29,8 @@ export function TaskEditorModal({
     // Target
     const [targetType, setTargetType] = useState<'employee' | 'role' | 'all_crew'>('all_crew')
     const [targetId, setTargetId] = useState('')
-    const [checklistRaw, setChecklistRaw] = useState('')
+    const [checklistItems, setChecklistItems] = useState<string[]>([''])
+    const [bulkChecklist, setBulkChecklist] = useState('')
 
     const [isSaving, setIsSaving] = useState(false)
 
@@ -40,7 +41,8 @@ export function TaskEditorModal({
             setTitle('')
             setTargetType('all_crew')
             setTargetId('')
-            setChecklistRaw('')
+            setChecklistItems([''])
+            setBulkChecklist('')
         }
     }, [isOpen, defaultDateStr])
 
@@ -61,17 +63,14 @@ export function TaskEditorModal({
 
         setIsSaving(true)
         try {
-            const checklistItems = checklistRaw
-                .split('\n')
-                .map(line => line.trim())
-                .filter(Boolean)
+            const normalizedChecklist = checklistItems.map(line => line.trim()).filter(Boolean)
             await createCustomTaskInstance(
                 dateStr,
                 title.trim(),
                 'full', // custom instances default to full display mode
                 targetType,
                 targetId,
-                checklistItems
+                normalizedChecklist
             )
             onClose()
         } catch (error: any) {
@@ -86,6 +85,31 @@ export function TaskEditorModal({
         if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
             e.preventDefault()
         }
+    }
+
+    function addChecklistItem() {
+        setChecklistItems((prev) => [...prev, ''])
+    }
+
+    function removeChecklistItem(index: number) {
+        setChecklistItems((prev) => prev.filter((_, i) => i !== index))
+    }
+
+    function updateChecklistItem(index: number, value: string) {
+        setChecklistItems((prev) => prev.map((item, i) => i === index ? value : item))
+    }
+
+    function pasteChecklistLines() {
+        const parsed = bulkChecklist
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+        if (parsed.length === 0) return
+        setChecklistItems((prev) => {
+            const nonEmpty = prev.map(i => i.trim()).filter(Boolean)
+            return [...nonEmpty, ...parsed]
+        })
+        setBulkChecklist('')
     }
 
     return (
@@ -127,17 +151,46 @@ export function TaskEditorModal({
 
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, color: '#111827' }}>
-                            Checklist items (optional, one per line)
+                            Checklist Items
                         </label>
-                        <textarea
-                            value={checklistRaw}
-                            onChange={(e) => setChecklistRaw(e.target.value)}
-                            placeholder={"Example:\nUnload truck\nSort materials\nSweep bay"}
-                            rows={5}
-                            style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff', resize: 'vertical' }}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {checklistItems.map((item, idx) => (
+                                <div key={idx} style={{ display: 'flex', gap: '0.4rem' }}>
+                                    <input
+                                        type="text"
+                                        value={item}
+                                        onChange={(e) => updateChecklistItem(idx, e.target.value)}
+                                        placeholder={`Checklist item ${idx + 1}`}
+                                        style={{ flex: 1, padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff' }}
+                                    />
+                                    <button type="button" className="cta secondary" onClick={() => removeChecklistItem(idx)} style={{ padding: '0.4rem 0.6rem' }}>
+                                        Remove
+                                    </button>
+                                </div>
+                            ))}
+                            <div>
+                                <button type="button" className="cta secondary" onClick={addChecklistItem}>
+                                    Add checklist item
+                                </button>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, color: '#111827' }}>
+                                    Paste multiple checklist lines (optional)
+                                </label>
+                                <textarea
+                                    value={bulkChecklist}
+                                    onChange={(e) => setBulkChecklist(e.target.value)}
+                                    placeholder={"Example:\nUnload truck\nSort materials\nSweep bay"}
+                                    rows={3}
+                                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--ink)', backgroundColor: '#fff', resize: 'vertical' }}
+                                />
+                                <button type="button" className="cta secondary" onClick={pasteChecklistLines} style={{ marginTop: '0.4rem' }}>
+                                    Add pasted lines
+                                </button>
+                            </div>
+                        </div>
                         <p className="small" style={{ marginTop: '0.35rem' }}>
-                            If blank, this task acts as a single-item checklist.
+                            Leave checklist empty for a single-step task.
                         </p>
                     </div>
 
