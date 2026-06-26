@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAdjacentPayday, getWeeklyPayrollSummary } from '@/lib/payroll/getWeeklyPayrollSummary';
 import { formatPayPeriodLabel, formatPaydayLabel } from '@/lib/payroll/payPeriod';
+import { EmployeePayrollTransactions, PayrollRecordPanel } from './PayrollTransactions';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,11 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                 <p className="callout" style={{ background: '#fef2f2', color: '#991b1b', borderColor: '#f87171' }}>
                     {error || 'An unknown error occurred while fetching payroll data.'}
                 </p>
+                {error?.includes('payroll_transactions') && (
+                    <p className="small" style={{ marginTop: '0.75rem', color: 'var(--muted)' }}>
+                        Apply migration <code>019_payroll_transactions.sql</code> in Supabase when ready.
+                    </p>
+                )}
             </div>
         );
     }
@@ -64,36 +70,51 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-                <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Total Hours</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{summary.totalHours.toFixed(2)}</div>
+            <PayrollRecordPanel
+                payday={summary.payday}
+                payPeriodStart={summary.payPeriodStart}
+                payPeriodEnd={summary.payPeriodEnd}
+                employees={summary.activeEmployees}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Total Hours</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{summary.totalHours.toFixed(2)}</div>
                 </div>
-                <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Employees with Hours</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{summary.employeesWithHours}</div>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Gross Labor</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(summary.estimatedPayrollTotal)}</div>
                 </div>
-                <div className="card" style={{ padding: '1.5rem', textAlign: 'center', borderColor: summary.openEntries > 0 ? '#fca5a5' : undefined }}>
-                    <div style={{ fontSize: '0.9rem', color: summary.openEntries > 0 ? '#dc2626' : 'var(--muted)', marginBottom: '0.5rem' }}>Open Entries</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: summary.openEntries > 0 ? '#dc2626' : 'inherit' }}>
-                        {summary.openEntries}
-                    </div>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Additions</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{formatCurrency(summary.totalAdditions)}</div>
                 </div>
-                <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Est. Total Payroll</div>
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#16a34a' }}>{formatCurrency(summary.estimatedPayrollTotal)}</div>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Deductions</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{formatCurrency(summary.totalDeductions)}</div>
+                </div>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Paid / Advanced</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{formatCurrency(summary.totalPaidAndAdvanced)}</div>
+                </div>
+                <div className="card" style={{ padding: '1.25rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.35rem' }}>Net Remaining Owed</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#1d4ed8' }}>{formatCurrency(summary.totalNetRemainingOwed)}</div>
                 </div>
             </div>
 
             {summary.openEntries > 0 && (
                 <div className="callout" style={{ marginBottom: '2rem', background: '#fef2f2', color: '#991b1b', borderColor: '#f87171' }}>
-                    <strong>Warning:</strong> There {summary.openEntries === 1 ? 'is 1 open time entry' : `are ${summary.openEntries} open time entries`} in this period. Open entries are excluded from total hours and estimated pay calculations until they are clocked out.
+                    <strong>Warning:</strong> There {summary.openEntries === 1 ? 'is 1 open time entry' : `are ${summary.openEntries} open time entries`} in this period. Open entries are excluded from gross labor until clocked out.
                 </div>
             )}
 
             {summary.employeeSummaries.length === 0 ? (
                 <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: '1.1rem' }}>No time entries found for this pay period.</p>
+                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: '1.1rem' }}>
+                        No time entries or payments recorded for this pay period.
+                    </p>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -107,87 +128,99 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                                             ? `$${emp.hourly_rate.toFixed(2)}/hr`
                                             : (
                                                 <span style={{ color: '#b45309' }}>
-                                                    No pay rate set — add a rate in Crew Management to estimate pay
+                                                    No pay rate set — add a rate in Crew Management to estimate gross labor
                                                 </span>
                                             )}
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Hours</div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{emp.total_hours.toFixed(2)}</div>
-                                    </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Entries</div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                                            {emp.entry_count} {emp.open_entry_count > 0 && <span style={{ color: '#dc2626', fontSize: '0.9rem' }}>({emp.open_entry_count} open)</span>}
-                                        </div>
-                                    </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>Est. Pay</div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{formatCurrency(emp.estimated_gross_pay)}</div>
-                                    </div>
+                                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+                                    <Stat label="Hours" value={emp.total_hours.toFixed(2)} />
+                                    <Stat label="Gross labor" value={formatCurrency(emp.estimated_gross_pay)} />
+                                    <Stat label="Additions" value={formatCurrency(emp.additions)} />
+                                    <Stat label="Deductions" value={formatCurrency(emp.deductions)} />
+                                    <Stat label="Paid / advanced" value={formatCurrency(emp.paid_and_advanced)} />
+                                    <Stat label="Net owed" value={formatCurrency(emp.net_remaining_owed)} highlight />
                                 </div>
                             </div>
 
-                            <details style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-                                <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 500, outline: 'none' }}>
-                                    View Entry Details ({emp.entry_count})
-                                </summary>
-                                <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left', minWidth: '500px' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                                                <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Date</th>
-                                                <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Clock In</th>
-                                                <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Clock Out</th>
-                                                <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Duration</th>
-                                                <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {emp.entries.map((entry) => {
-                                                const clockInDate = new Date(entry.clock_in);
-                                                const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
-                                                const timeFormatter = new Intl.DateTimeFormat('en-US', {
-                                                    hour: 'numeric',
-                                                    minute: '2-digit',
-                                                    timeZone: 'America/Chicago'
-                                                });
-                                                const dateFormatter = new Intl.DateTimeFormat('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    timeZone: 'America/Chicago'
-                                                });
-                                                const isRowOpen = entry.clock_out === null;
+                            <EmployeePayrollTransactions
+                                employeeId={emp.employee_id}
+                                payday={summary.payday}
+                                payPeriodStart={summary.payPeriodStart}
+                                payPeriodEnd={summary.payPeriodEnd}
+                                transactions={emp.transactions}
+                                employees={summary.activeEmployees}
+                            />
 
-                                                return (
-                                                    <tr key={entry.id} style={{ borderBottom: '1px solid #e5e7eb', background: isRowOpen ? '#fef2f2' : 'transparent' }}>
-                                                        <td style={{ padding: '0.6rem 0' }}>{dateFormatter.format(clockInDate)}</td>
-                                                        <td style={{ padding: '0.6rem 0' }}>{timeFormatter.format(clockInDate)}</td>
-                                                        <td style={{ padding: '0.6rem 0' }}>{clockOutDate ? timeFormatter.format(clockOutDate) : '-'}</td>
-                                                        <td style={{ padding: '0.6rem 0', fontWeight: isRowOpen ? 'normal' : 500 }}>
-                                                            {entry.duration_hours !== null ? entry.duration_hours.toFixed(2) + 'h' : '-'}
-                                                        </td>
-                                                        <td style={{ padding: '0.6rem 0' }}>
-                                                            {isRowOpen ? (
-                                                                <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: '#fee2e2', borderRadius: '4px' }}>OPEN</span>
-                                                            ) : (
-                                                                <span style={{ color: '#16a34a', fontSize: '0.8rem' }}>Complete</span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </details>
+                            {emp.entry_count > 0 && (
+                                <details style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+                                    <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontWeight: 500, outline: 'none' }}>
+                                        View time entries ({emp.entry_count})
+                                    </summary>
+                                    <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left', minWidth: '500px' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                                                    <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Date</th>
+                                                    <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Clock In</th>
+                                                    <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Clock Out</th>
+                                                    <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Duration</th>
+                                                    <th style={{ padding: '0.5rem 0', color: 'var(--muted)', fontWeight: 500 }}>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {emp.entries.map((entry) => {
+                                                    const clockInDate = new Date(entry.clock_in);
+                                                    const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
+                                                    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+                                                        hour: 'numeric',
+                                                        minute: '2-digit',
+                                                        timeZone: 'America/Chicago'
+                                                    });
+                                                    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        timeZone: 'America/Chicago'
+                                                    });
+                                                    const isRowOpen = entry.clock_out === null;
+
+                                                    return (
+                                                        <tr key={entry.id} style={{ borderBottom: '1px solid #e5e7eb', background: isRowOpen ? '#fef2f2' : 'transparent' }}>
+                                                            <td style={{ padding: '0.6rem 0' }}>{dateFormatter.format(clockInDate)}</td>
+                                                            <td style={{ padding: '0.6rem 0' }}>{timeFormatter.format(clockInDate)}</td>
+                                                            <td style={{ padding: '0.6rem 0' }}>{clockOutDate ? timeFormatter.format(clockOutDate) : '-'}</td>
+                                                            <td style={{ padding: '0.6rem 0', fontWeight: isRowOpen ? 'normal' : 500 }}>
+                                                                {entry.duration_hours !== null ? entry.duration_hours.toFixed(2) + 'h' : '-'}
+                                                            </td>
+                                                            <td style={{ padding: '0.6rem 0' }}>
+                                                                {isRowOpen ? (
+                                                                    <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: '#fee2e2', borderRadius: '4px' }}>OPEN</span>
+                                                                ) : (
+                                                                    <span style={{ color: '#16a34a', fontSize: '0.8rem' }}>Complete</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            )}
                         </div>
                     ))}
                 </div>
             )}
+        </div>
+    );
+}
+
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+    return (
+        <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{label}</div>
+            <div style={{ fontWeight: 'bold', fontSize: '1rem', color: highlight ? '#1d4ed8' : 'inherit' }}>{value}</div>
         </div>
     );
 }
