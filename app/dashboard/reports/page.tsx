@@ -5,6 +5,7 @@ import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 import { getMissingClockOuts, getRecentTimeEntries, getWeeklyHoursReport } from '@/lib/reports'
 import { EditTimeEntryForm, CreateManualEntryForm } from './ReportActions'
+import { PageHeader } from '@/components/dashboard/ops/PageHeader'
 
 export default async function ReportsDashboardPage({ searchParams }: { searchParams: { employeeId?: string, startDate?: string, endDate?: string } }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
@@ -53,18 +54,11 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
     }
 
     return (
-        <div className="page" style={{ maxWidth: '1000px' }}>
-            <Link href="/dashboard" className="link small" style={{ display: 'inline-block', marginBottom: '1rem' }}>
-                &larr; Back to Dashboard
-            </Link>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h1 style={{ margin: 0 }}>Operational Time Reports</h1>
-            </div>
-
-            <p className="section-lead" style={{ marginBottom: '1rem' }}>
-                Review and correct crew time entries. (Financial payroll logic is handled separately).
-            </p>
+        <div>
+            <PageHeader
+                title="Operational Time Reports"
+                lead="Review and correct crew time entries. Financial payroll is handled separately on the Payroll page."
+            />
 
             {/* FILTERS */}
             <div className="card" style={{ marginBottom: '2rem', padding: '1rem', background: '#f8fafc' }}>

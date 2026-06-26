@@ -1,6 +1,82 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
+import { PushNotificationSettings } from '@/components/dashboard/PushNotificationSettings';
+import { OpsIcon } from '@/components/dashboard/ops/Icon';
+
+type HomeTile = {
+    href: string;
+    title: string;
+    description: string;
+    icon: Parameters<typeof OpsIcon>[0]['name'];
+    adminOnly?: boolean;
+    crewOnly?: boolean;
+    variant?: 'primary' | 'default';
+};
+
+const TILES: HomeTile[] = [
+    {
+        href: '/dashboard/crew',
+        title: 'Crew Workspace',
+        description: 'Today’s tasks, checklists, and clock-in.',
+        icon: 'tasks',
+        crewOnly: true,
+        variant: 'primary'
+    },
+    {
+        href: '/dashboard/time',
+        title: 'Time Clock',
+        description: 'Clock in or out for yourself or the crew.',
+        icon: 'time'
+    },
+    {
+        href: '/dashboard/tasks',
+        title: 'My Tasks',
+        description: 'View and complete assigned work.',
+        icon: 'tasks'
+    },
+    {
+        href: '/dashboard/tasks/admin',
+        title: "Today's Board",
+        description: 'Full-day task overview for the office.',
+        icon: 'board',
+        adminOnly: true
+    },
+    {
+        href: '/dashboard/tasks/scheduler',
+        title: 'Week Scheduler',
+        description: 'Plan and assign work across the week.',
+        icon: 'scheduler',
+        adminOnly: true
+    },
+    {
+        href: '/dashboard/reports',
+        title: 'Operational Reports',
+        description: 'Hours, missing clock-outs, and time corrections.',
+        icon: 'reports',
+        adminOnly: true
+    },
+    {
+        href: '/dashboard/employees',
+        title: 'Crew Management',
+        description: 'Rates, profiles, and crew access.',
+        icon: 'crew',
+        adminOnly: true
+    },
+    {
+        href: '/dashboard/payroll',
+        title: 'Payroll',
+        description: 'Pay periods, hours, payments, and adjustments.',
+        icon: 'payroll',
+        adminOnly: true
+    },
+    {
+        href: '/dashboard/resources',
+        title: 'Resources & Help',
+        description: 'SOPs, safety, training, and how-to guides.',
+        icon: 'resources'
+    }
+];
 
 export default async function DashboardHome() {
     const supabase = await createClient();
@@ -11,73 +87,44 @@ export default async function DashboardHome() {
         redirect('/login');
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-    console.log("=== SERVER DEBUG LOG ===");
-    console.log("User Email:", user.email);
-    console.log("User ID:", user.id);
-    console.log("Profile Data:", profile);
-    console.log("Profile Error:", profileError);
-    console.log("========================");
-
     const isAdmin = profile?.role === 'admin';
 
+    const visibleTiles = TILES.filter((tile) => {
+        if (tile.adminOnly && !isAdmin) return false;
+        if (tile.crewOnly && isAdmin) return false;
+        return true;
+    });
+
     return (
-        <div className="page center">
-            <h1>Green Country Dashboard</h1>
-            <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--muted)', background: '#f3f4f6', display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.5rem 0.8rem', borderRadius: '4px', textAlign: 'left' }}>
-                <div><strong>Detected email:</strong> {user.email}</div>
-                <div><strong>Detected user id:</strong> {user.id}</div>
-                <div><strong>Profile found:</strong> {profile ? 'Yes' : 'No'}</div>
-                <div><strong>Profile query error:</strong> {profileError ? profileError.message : 'none'}</div>
-                <div><strong>Detected role:</strong> {profile?.role ?? 'none'}</div>
-            </div>
-            <p className="section-lead">
-                Select an option below to manage employees or track time.
-            </p>
+        <div>
+            <header className="ops-page-header">
+                <h1>Operations Dashboard</h1>
+                <p className="ops-page-header__lead">
+                    Practical tools for field work, time, tasks, and crew coordination — organized and ready for the job site.
+                </p>
+            </header>
 
-            <div className="cards" style={{ maxWidth: '400px', margin: '2rem auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {isAdmin && (
-                    <>
-                        <Link href="/dashboard/tasks/admin" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Today's Board
-                        </Link>
-                        <Link href="/dashboard/tasks/scheduler" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Week Scheduler
-                        </Link>
-                        <Link href="/dashboard/reports" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Operational Reports
-                        </Link>
-                        <Link href="/dashboard/employees" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Crew Management
-                        </Link>
-                        <Link href="/dashboard/payroll" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                            Payroll
-                        </Link>
-                    </>
-                )}
-                <Link href="/dashboard/time" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem' }}>
-                    Time Tracking
-                </Link>
-                {!isAdmin && (
-                    <Link href="/dashboard/crew" className="cta" style={{ padding: '1.5rem', fontSize: '1.2rem', backgroundColor: '#3b82f6' }}>
-                        My Crew Workspace
+            <div className="ops-grid-cards">
+                {visibleTiles.map((tile) => (
+                    <Link key={tile.href} href={tile.href} className="ops-home-tile">
+                        <span className="ops-home-tile__icon">
+                            <OpsIcon name={tile.icon} size={22} />
+                        </span>
+                        <span className="ops-home-tile__title">{tile.title}</span>
+                        <p className="ops-home-tile__desc">{tile.description}</p>
                     </Link>
-                )}
+                ))}
             </div>
 
-            <form action={async () => {
-                'use server';
-                const supabase = await createClient();
-                await supabase.auth.signOut();
-                redirect('/login');
-            }} style={{ marginTop: '2rem' }}>
-                <button type="submit" className="link small">Sign Out</button>
-            </form>
+            <div style={{ marginTop: '2rem' }}>
+                <PushNotificationSettings />
+            </div>
         </div>
     );
 }

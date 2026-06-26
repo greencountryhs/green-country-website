@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { clockInTimeEntry } from '@/lib/time/actions';
 
+import { StatusBadge } from '@/components/dashboard/ops/StatusBadge';
+
 const errorBannerStyle = {
-    background: '#fef2f2',
-    color: '#991b1b',
-    borderColor: '#fecaca',
+    background: '#fdf4f4',
+    color: '#7f1d1d',
+    borderColor: '#e8b4b4',
     marginBottom: '0.75rem'
 } as const;
 import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
@@ -73,24 +75,19 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
     }
 
     if (loading) {
-        return <div className="card"><p>Loading time clock...</p></div>;
+        return <div className="ops-card"><p>Loading time clock…</p></div>;
     }
 
     const isWorking = entryId !== null;
 
     return (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="ops-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0 }}>Time Clock</h3>
-                <span className="badge" style={{
-                    background: isWorking ? '#dcfce7' : '#f3f4f6',
-                    color: isWorking ? '#166534' : '#374151',
-                    border: 'none',
-                    fontSize: '0.9rem',
-                    padding: '0.3rem 0.6rem'
-                }}>
-                    {isWorking ? 'Clocked In' : 'Not Working'}
-                </span>
+                <StatusBadge
+                    variant={isWorking ? 'clocked-in' : 'off'}
+                    label={isWorking ? 'Clocked in' : 'Not working'}
+                />
             </div>
 
             {isWorking && clockInTime && (
@@ -100,7 +97,7 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
             )}
 
             {actionMessage && (
-                <div className="callout" style={errorBannerStyle} role="alert">
+                <div className="ops-callout ops-callout--error" style={errorBannerStyle} role="alert">
                     {actionMessage}
                 </div>
             )}
@@ -126,8 +123,7 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
                                 setActionMessage(null);
                                 setShowClockOutForm(true);
                             }}
-                            className="cta"
-                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
+                            className="ops-btn ops-btn--destructive ops-btn--block"
                         >
                             Clock Out
                         </button>
@@ -135,8 +131,7 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
                 ) : (
                     <button
                         onClick={handleClockIn}
-                        className="cta"
-                        style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}
+                        className="ops-btn ops-btn--success ops-btn--block"
                     >
                         Clock In
                     </button>

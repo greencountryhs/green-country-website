@@ -4,18 +4,14 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
+import { PageHeader } from '@/components/dashboard/ops/PageHeader';
+import { StatusBadge } from '@/components/dashboard/ops/StatusBadge';
 import {
     bulkClockInTimeEntries,
     bulkClockOutTimeEntries,
     clockInTimeEntry,
     clockOutTimeEntry
 } from '@/lib/time/actions';
-
-const errorBannerStyle = {
-    background: '#fef2f2',
-    color: '#991b1b',
-    borderColor: '#fecaca'
-} as const;
 
 type Employee = {
     id: string;
@@ -231,50 +227,46 @@ export default function TimeTrackingPage() {
     }
 
     return (
-        <div className="page">
-            <Link href="/dashboard" className="link small" style={{ marginBottom: '1rem', display: 'inline-block' }}>
-                &larr; Back to Dashboard
-            </Link>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                <h1 style={{ margin: 0 }}>Time Tracking</h1>
-                {role && (
-                    <span style={{ fontSize: '0.9rem', color: 'var(--muted)', background: '#f3f4f6', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
-                        Detected role: {role}
+        <div>
+            <PageHeader
+                title="Time Tracking"
+                lead="Clock crew in or out individually, or use bulk actions for start/end of day."
+                actions={role ? (
+                    <span className="ops-status ops-status--scheduled" style={{ textTransform: 'none' }}>
+                        Role: {role}
                     </span>
-                )}
-            </div>
+                ) : undefined}
+            />
 
             {role === 'admin' && (
-                <div style={{ marginBottom: '2rem' }}>
-                    <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Bulk Actions</p>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-                        Use these to quickly clock in all inactive crew, or clock out all active crew at once.
+                <div className="ops-card ops-card--flat" style={{ marginBottom: '1.5rem' }}>
+                    <h2 className="ops-section-title">Bulk actions</h2>
+                    <p className="ops-section-lead">
+                        Quickly clock in all inactive crew, or clock out all active crew at once.
                     </p>
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                        <button onClick={handleStartDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}>
-                            Bulk Clock In All
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <button type="button" onClick={handleStartDay} className="ops-btn ops-btn--success" style={{ flex: 1, minWidth: 160 }}>
+                            Bulk clock in all
                         </button>
-                        <button onClick={handleEndDay} className="cta" style={{ flex: 1, padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}>
-                            Bulk Clock Out All
+                        <button type="button" onClick={handleEndDay} className="ops-btn ops-btn--destructive" style={{ flex: 1, minWidth: 160 }}>
+                            Bulk clock out all
                         </button>
                     </div>
                 </div>
             )}
 
-            <div style={{ marginTop: '2rem', borderTop: '2px solid var(--border)', paddingTop: '1.5rem' }}>
-                <p className="section-lead" style={{ marginBottom: '1.5rem' }}>
-                    Individual Actions: Select a crew member below to clock them in or out individually.
-                </p>
+            <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--ops-border)', paddingTop: '1.25rem' }}>
+                <h2 className="ops-section-title">Individual actions</h2>
+                <p className="ops-section-lead">Select a crew member below to clock them in or out.</p>
 
             {actionError && (
-                <div className="callout" style={{ ...errorBannerStyle, marginBottom: '1rem' }} role="alert">
+                <div className="ops-callout ops-callout--error" style={{ marginBottom: '1rem' }} role="alert">
                     {actionError}
                 </div>
             )}
 
             {actionMessage && (
-                <div className="callout" style={{ marginBottom: '2rem', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
+                <div className="ops-callout ops-callout--info" style={{ marginBottom: '1rem' }}>
                     {actionMessage}
                 </div>
             )}
@@ -288,7 +280,7 @@ export default function TimeTrackingPage() {
                     {employees.map(emp => {
                         const isWorking = emp.current_entry_id !== null;
                         return (
-                            <div key={emp.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div key={emp.id} className="ops-card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                         <h3 style={{ margin: 0, fontSize: '1.4rem' }}>
@@ -302,15 +294,10 @@ export default function TimeTrackingPage() {
                                             </Link>
                                         )}
                                     </div>
-                                    <span className="badge" style={{
-                                        background: isWorking ? '#dcfce7' : '#f3f4f6',
-                                        color: isWorking ? '#166534' : '#374151',
-                                        border: 'none',
-                                        fontSize: '1rem',
-                                        padding: '0.4rem 0.8rem'
-                                    }}>
-                                        {isWorking ? 'Clocked In' : 'Not Working'}
-                                    </span>
+                                    <StatusBadge
+                                        variant={isWorking ? 'clocked-in' : 'off'}
+                                        label={isWorking ? 'Clocked in' : 'Not working'}
+                                    />
                                 </div>
 
                                 {isWorking && emp.clock_in_time && (
@@ -353,19 +340,18 @@ export default function TimeTrackingPage() {
                                                         handleClockOut(emp.id, emp.current_entry_id!);
                                                     }
                                                 }}
-                                                className="cta"
-                                                style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#dc2626' }}
+                                                className="ops-btn ops-btn--destructive ops-btn--block"
                                             >
                                                 Clock Out
                                             </button>
                                         )
                                     ) : (
                                         <button
+                                            type="button"
                                             onClick={() => handleClockIn(emp.id)}
-                                            className="cta"
-                                            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: '#16a34a' }}
+                                            className="ops-btn ops-btn--success ops-btn--block"
                                         >
-                                            Clock In
+                                            Clock in
                                         </button>
                                     )}
                                 </div>

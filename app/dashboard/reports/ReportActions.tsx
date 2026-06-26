@@ -12,7 +12,7 @@ import {
 function FormError({ message }: { message: string | null }) {
     if (!message) return null
     return (
-        <div className="callout" style={errorBannerStyle} role="alert">
+        <div className="callout ops-callout ops-callout--error" style={errorBannerStyle} role="alert">
             {message}
         </div>
     )

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { CrewDashboardShell } from '@/components/dashboard/CrewDashboardShell'
+import { PageHeader } from '@/components/dashboard/ops/PageHeader'
 import { getTodaysTasks, getTaskInstanceChecklistData } from '@/lib/tasks'
 
 export const dynamic = 'force-dynamic'
@@ -43,9 +44,11 @@ export default async function CrewDashboardPage() {
     }))
 
     return (
-        <div className="page">
-            <h1>Crew Workspace</h1>
-            <p className="section-lead" style={{ marginTop: '0.5rem' }}>Welcome back, {employee.display_name}.</p>
+        <div>
+            <PageHeader
+                title="Crew Workspace"
+                lead={`Welcome back, ${employee.display_name}.`}
+            />
 
             <CrewDashboardShell employeeId={employee.id} tasks={tasksWithItems} />
         </div>

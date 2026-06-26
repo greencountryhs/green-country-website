@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { StatusBadge } from '@/components/dashboard/ops/StatusBadge'
 import { useRouter } from 'next/navigation'
 import {
     completeTaskInstanceAsCrew,
@@ -136,19 +137,9 @@ export function TaskDisplayList({
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', alignItems: 'center' }}>
                 <span className="small">Instance status</span>
-                <span
-                    className="badge"
-                    style={{
-                        background: instanceStatus === 'completed' ? '#dcfce7' : '#f3f4f6',
-                        color: instanceStatus === 'completed' ? '#166534' : '#334155',
-                        border: 'none',
-                        textTransform: 'capitalize'
-                    }}
-                >
-                    {instanceStatus}
-                </span>
+                <StatusBadge variant={instanceStatus} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--muted)' }}>
                 <span>Mode: <strong>{displayMode.toUpperCase()}</strong></span>

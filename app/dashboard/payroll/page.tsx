@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getAdjacentPayday, getWeeklyPayrollSummary } from '@/lib/payroll/getWeeklyPayrollSummary';
 import { formatPayPeriodLabel, formatPaydayLabel } from '@/lib/payroll/payPeriod';
 import { EmployeePayrollTransactions, PayrollRecordPanel } from './PayrollTransactions';
+import { PageHeader } from '@/components/dashboard/ops/PageHeader';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -49,26 +50,21 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
     }
 
     return (
-        <div className="page">
-            <Link href="/dashboard" className="link small" style={{ marginBottom: '1rem', display: 'inline-block' }}>
-                &larr; Back to Dashboard
-            </Link>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
-                <h1 style={{ margin: 0 }}>Payroll Summary</h1>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                    <Link href={`/dashboard/payroll?payday=${prevPayday}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
-                        &larr; Prev Period
-                    </Link>
-                    <div style={{ fontWeight: 500, background: '#f3f4f6', padding: '0.5rem 0.8rem', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <span>Pay period: {payPeriodLabel}</span>
-                        <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>Payday: {paydayLabel}</span>
+        <div>
+            <PageHeader
+                title="Payroll Summary"
+                lead={`Pay period ${payPeriodLabel} · Payday ${paydayLabel}`}
+                actions={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <Link href={`/dashboard/payroll?payday=${prevPayday}`} className="ops-btn ops-btn--secondary" style={{ padding: '0.45rem 0.8rem', minHeight: 38 }}>
+                            ← Prev
+                        </Link>
+                        <Link href={`/dashboard/payroll?payday=${nextPayday}`} className="ops-btn ops-btn--secondary" style={{ padding: '0.45rem 0.8rem', minHeight: 38 }}>
+                            Next →
+                        </Link>
                     </div>
-                    <Link href={`/dashboard/payroll?payday=${nextPayday}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
-                        Next Period &rarr;
-                    </Link>
-                </div>
-            </div>
+                }
+            />
 
             <PayrollRecordPanel
                 payday={summary.payday}
