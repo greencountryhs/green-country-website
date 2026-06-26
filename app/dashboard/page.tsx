@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
-import { PushNotificationSettings } from '@/components/dashboard/PushNotificationSettings';
 import { OpsIcon } from '@/components/dashboard/ops/Icon';
 
 type HomeTile = {
@@ -120,10 +119,6 @@ export default async function DashboardHome() {
                         <p className="ops-home-tile__desc">{tile.description}</p>
                     </Link>
                 ))}
-            </div>
-
-            <div style={{ marginTop: '2rem' }}>
-                <PushNotificationSettings />
             </div>
         </div>
     );
