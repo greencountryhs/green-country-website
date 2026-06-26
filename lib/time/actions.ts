@@ -8,6 +8,12 @@ import {
     timeEntryFailure,
     timeEntrySuccess
 } from './errors';
+import {
+    getActorUserId,
+    logTimeClockEvent,
+    resolveClockEventSource,
+    type TimeClockEventSource
+} from './clockEvents';
 
 async function assertCanClockEmployee(
     supabase: Awaited<ReturnType<typeof createClient>>,
@@ -49,11 +55,31 @@ function revalidateTimePaths() {
     revalidatePath('/dashboard/payroll');
 }
 
-export async function clockInTimeEntry(employeeId: string) {
+export async function clockInTimeEntry(
+    employeeId: string,
+    options?: { source?: TimeClockEventSource }
+) {
+    const supabase = await createClient();
+    const userId = await getActorUserId(supabase);
+    const source = await resolveClockEventSource(supabase, employeeId, options?.source);
+
+    await logTimeClockEvent(supabase, {
+        employeeId,
+        userId,
+        eventType: 'clock_in_attempt',
+        source
+    });
+
     try {
-        const supabase = await createClient();
         const auth = await assertCanClockEmployee(supabase, employeeId);
         if (auth.authorized === false) {
+            await logTimeClockEvent(supabase, {
+                employeeId,
+                userId,
+                eventType: 'clock_in_failed',
+                source,
+                errorMessage: auth.error
+            });
             return timeEntryFailure(auth.error);
         }
 
@@ -64,6 +90,13 @@ export async function clockInTimeEntry(employeeId: string) {
             clockOut: null
         });
         if (conflict.ok === false) {
+            await logTimeClockEvent(supabase, {
+                employeeId,
+                userId,
+                eventType: 'clock_in_failed',
+                source,
+                errorMessage: conflict.error
+            });
             return timeEntryFailure(conflict.error);
         }
 
@@ -75,13 +108,37 @@ export async function clockInTimeEntry(employeeId: string) {
 
         if (error || !data) {
             console.error('clockInTimeEntry insert failed:', error);
-            return timeEntryFailure(resolveTimeEntryFailure(error ?? {}, 'Failed to clock in'));
+            const message = resolveTimeEntryFailure(error ?? {}, 'Failed to clock in');
+            await logTimeClockEvent(supabase, {
+                employeeId,
+                userId,
+                timeEntryId: null,
+                eventType: 'clock_in_failed',
+                source,
+                errorMessage: message
+            });
+            return timeEntryFailure(message);
         }
+
+        await logTimeClockEvent(supabase, {
+            employeeId,
+            userId,
+            timeEntryId: data.id,
+            eventType: 'clock_in_success',
+            source
+        });
 
         revalidateTimePaths();
         return timeEntrySuccess(data);
     } catch (err) {
         console.error('clockInTimeEntry unexpected error:', err);
+        await logTimeClockEvent(supabase, {
+            employeeId,
+            userId,
+            eventType: 'clock_in_failed',
+            source,
+            errorMessage: err instanceof Error ? err.message : 'Unexpected error'
+        });
         throw err;
     }
 }
@@ -94,12 +151,13 @@ export async function clockOutTimeEntry(
         dayNotes?: string;
         blockers?: string;
         followUpNeeded?: boolean;
-    }
-)
-{
-    try {
-        const supabase = await createClient();
+    },
+    options?: { source?: TimeClockEventSource }
+) {
+    const supabase = await createClient();
+    const userId = await getActorUserId(supabase);
 
+    try {
         const { data: entry, error: fetchErr } = await supabase
             .from('time_entries')
             .select('id, employee_id, clock_in, clock_out')
@@ -110,12 +168,39 @@ export async function clockOutTimeEntry(
             return timeEntryFailure('Time entry not found');
         }
 
+        const source = await resolveClockEventSource(supabase, entry.employee_id, options?.source);
+
+        await logTimeClockEvent(supabase, {
+            employeeId: entry.employee_id,
+            userId,
+            timeEntryId: entryId,
+            eventType: 'clock_out_attempt',
+            source
+        });
+
         if (entry.clock_out) {
-            return timeEntryFailure('This shift is already clocked out');
+            const message = 'This shift is already clocked out';
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_failed',
+                source,
+                errorMessage: message
+            });
+            return timeEntryFailure(message);
         }
 
         const auth = await assertCanClockEmployee(supabase, entry.employee_id);
         if (auth.authorized === false) {
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_failed',
+                source,
+                errorMessage: auth.error
+            });
             return timeEntryFailure(auth.error);
         }
 
@@ -127,6 +212,14 @@ export async function clockOutTimeEntry(
             excludeEntryId: entryId
         });
         if (conflict.ok === false) {
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_failed',
+                source,
+                errorMessage: conflict.error
+            });
             return timeEntryFailure(conflict.error);
         }
 
@@ -146,8 +239,25 @@ export async function clockOutTimeEntry(
 
         if (error) {
             console.error('clockOutTimeEntry update failed:', error);
-            return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to clock out'));
+            const message = resolveTimeEntryFailure(error, 'Failed to clock out');
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_failed',
+                source,
+                errorMessage: message
+            });
+            return timeEntryFailure(message);
         }
+
+        await logTimeClockEvent(supabase, {
+            employeeId: entry.employee_id,
+            userId,
+            timeEntryId: entryId,
+            eventType: 'clock_out_success',
+            source
+        });
 
         revalidateTimePaths();
         return timeEntrySuccess(undefined);
@@ -164,6 +274,7 @@ export async function bulkClockInTimeEntries(employeeIds: string[]): Promise<{
 }> {
     try {
         const supabase = await createClient();
+        const userId = await getActorUserId(supabase);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             return { clockedIn: 0, skipped: employeeIds.length, error: 'Unauthorized' };
@@ -179,12 +290,20 @@ export async function bulkClockInTimeEntries(employeeIds: string[]): Promise<{
             return { clockedIn: 0, skipped: employeeIds.length, error: 'Unauthorized' };
         }
 
+        const source: TimeClockEventSource = 'bulk';
         const now = new Date().toISOString();
         let clockedIn = 0;
         let skipped = 0;
         let firstError: string | null = null;
 
         for (const employeeId of employeeIds) {
+            await logTimeClockEvent(supabase, {
+                employeeId,
+                userId,
+                eventType: 'clock_in_attempt',
+                source
+            });
+
             const conflict = await checkTimeEntryConflict(supabase, {
                 employeeId,
                 clockIn: now,
@@ -194,20 +313,44 @@ export async function bulkClockInTimeEntries(employeeIds: string[]): Promise<{
             if (conflict.ok === false) {
                 skipped += 1;
                 firstError ??= conflict.error;
+                await logTimeClockEvent(supabase, {
+                    employeeId,
+                    userId,
+                    eventType: 'clock_in_failed',
+                    source,
+                    errorMessage: conflict.error
+                });
                 continue;
             }
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('time_entries')
-                .insert([{ employee_id: employeeId, clock_in: now }]);
+                .insert([{ employee_id: employeeId, clock_in: now }])
+                .select('id')
+                .single();
 
-            if (error) {
+            if (error || !data) {
                 console.error('bulkClockInTimeEntries insert failed:', { employeeId, error });
+                const message = resolveTimeEntryFailure(error ?? {}, 'Failed to clock in');
                 skipped += 1;
-                firstError ??= resolveTimeEntryFailure(error);
+                firstError ??= message;
+                await logTimeClockEvent(supabase, {
+                    employeeId,
+                    userId,
+                    eventType: 'clock_in_failed',
+                    source,
+                    errorMessage: message
+                });
                 continue;
             }
 
+            await logTimeClockEvent(supabase, {
+                employeeId,
+                userId,
+                timeEntryId: data.id,
+                eventType: 'clock_in_success',
+                source
+            });
             clockedIn += 1;
         }
 
@@ -226,6 +369,7 @@ export async function bulkClockOutTimeEntries(entryIds: string[]): Promise<{
 }> {
     try {
         const supabase = await createClient();
+        const userId = await getActorUserId(supabase);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
             return { clockedOut: 0, skipped: entryIds.length, error: 'Unauthorized' };
@@ -241,6 +385,7 @@ export async function bulkClockOutTimeEntries(entryIds: string[]): Promise<{
             return { clockedOut: 0, skipped: entryIds.length, error: 'Unauthorized' };
         }
 
+        const source: TimeClockEventSource = 'bulk';
         const now = new Date().toISOString();
         let clockedOut = 0;
         let skipped = 0;
@@ -258,6 +403,14 @@ export async function bulkClockOutTimeEntries(entryIds: string[]): Promise<{
                 continue;
             }
 
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_attempt',
+                source
+            });
+
             const conflict = await checkTimeEntryConflict(supabase, {
                 employeeId: entry.employee_id,
                 clockIn: entry.clock_in,
@@ -268,6 +421,14 @@ export async function bulkClockOutTimeEntries(entryIds: string[]): Promise<{
             if (conflict.ok === false) {
                 skipped += 1;
                 firstError ??= conflict.error;
+                await logTimeClockEvent(supabase, {
+                    employeeId: entry.employee_id,
+                    userId,
+                    timeEntryId: entryId,
+                    eventType: 'clock_out_failed',
+                    source,
+                    errorMessage: conflict.error
+                });
                 continue;
             }
 
@@ -278,11 +439,27 @@ export async function bulkClockOutTimeEntries(entryIds: string[]): Promise<{
 
             if (error) {
                 console.error('bulkClockOutTimeEntries update failed:', { entryId, error });
+                const message = resolveTimeEntryFailure(error, 'Failed to clock out');
                 skipped += 1;
-                firstError ??= resolveTimeEntryFailure(error);
+                firstError ??= message;
+                await logTimeClockEvent(supabase, {
+                    employeeId: entry.employee_id,
+                    userId,
+                    timeEntryId: entryId,
+                    eventType: 'clock_out_failed',
+                    source,
+                    errorMessage: message
+                });
                 continue;
             }
 
+            await logTimeClockEvent(supabase, {
+                employeeId: entry.employee_id,
+                userId,
+                timeEntryId: entryId,
+                eventType: 'clock_out_success',
+                source
+            });
             clockedOut += 1;
         }
 

@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 import { getMissingClockOuts, getRecentTimeEntries, getWeeklyHoursReport } from '@/lib/reports'
+import { getRecentClockEvents } from '@/lib/time/getClockEvents'
+import { ClockEventHistory } from '@/components/dashboard/ClockEventHistory'
 import { EditTimeEntryForm, CreateManualEntryForm } from './ReportActions'
 import { PageHeader } from '@/components/dashboard/ops/PageHeader'
 
@@ -24,6 +26,10 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
     const weeklyHours = await getWeeklyHoursReport(filters)
     const missingClockOuts = await getMissingClockOuts(filters)
     const recentEntries = await getRecentTimeEntries(50, filters)
+    const clockEvents = await getRecentClockEvents({
+        employeeId: employeeId || undefined,
+        limit: 50
+    })
 
     function formatTimeDisplay(isoString: string) {
         return new Date(isoString).toLocaleString([], {
@@ -86,6 +92,15 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
             </div>
 
             <div style={{ display: 'grid', gap: '2rem' }}>
+
+                {/* CLOCK EVENT AUDIT */}
+                <div className="ops-card">
+                    <h3 className="ops-section-title">Recent clock events</h3>
+                    <p className="ops-section-lead">
+                        Attempts and outcomes for clock-in/out (including failures). Use this to verify whether crew reached the clock-out step.
+                    </p>
+                    <ClockEventHistory events={clockEvents} showEmployee={!employeeId} />
+                </div>
 
                 {/* MANUAL ENTRY */}
                 <CreateManualEntryForm employees={employees?.map(e => ({ id: e.id, name: e.display_name })) || []} />
