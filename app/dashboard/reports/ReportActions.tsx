@@ -1,13 +1,37 @@
 'use client'
 
-import { useFormStatus } from 'react-dom'
-import { correctTimeEntryAction, createManualTimeEntryAction, deleteTimeEntryAction } from './actions'
+import { useFormState, useFormStatus } from 'react-dom'
+import {
+    correctTimeEntryAction,
+    createManualTimeEntryAction,
+    deleteTimeEntryAction,
+    errorBannerStyle,
+    initialReportFormState
+} from './actions'
+
+function FormError({ message }: { message: string | null }) {
+    if (!message) return null
+    return (
+        <div className="callout" style={errorBannerStyle} role="alert">
+            {message}
+        </div>
+    )
+}
 
 export function EditTimeEntryForm({ entry, defaultClockIn, defaultClockOut }: { entry: any, defaultClockIn: string, defaultClockOut: string }) {
+    const [state, formAction] = useFormState(correctTimeEntryAction, initialReportFormState)
+
     return (
         <details>
             <summary className="link small" style={{ cursor: 'pointer' }}>Edit</summary>
-            <form action={correctTimeEntryAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'var(--surface)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+            <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', background: 'var(--surface)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                <FormError message={state.error} />
+                {state.success && (
+                    <div className="callout" style={{ background: '#ecfdf5', color: '#166534', borderColor: '#bbf7d0', marginBottom: '0.75rem' }}>
+                        Entry updated.
+                    </div>
+                )}
+
                 <input type="hidden" name="entryId" value={entry.id} />
 
                 <label style={{ fontSize: '0.8rem' }}>Clock In (Local Time)</label>
@@ -52,11 +76,19 @@ function DeleteSubmitButton() {
 }
 
 export function CreateManualEntryForm({ employees }: { employees: { id: string, name: string }[] }) {
+    const [state, formAction] = useFormState(createManualTimeEntryAction, initialReportFormState)
+
     return (
         <details>
             <summary className="cta secondary" style={{ cursor: 'pointer', display: 'inline-block' }}>Add Manual Entry</summary>
-            <form action={createManualTimeEntryAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem', background: 'var(--surface)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border)', maxWidth: '400px' }}>
+            <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem', background: 'var(--surface)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border)', maxWidth: '400px' }}>
                 <h4 style={{ margin: 0 }}>Create Manual Entry</h4>
+                <FormError message={state.error} />
+                {state.success && (
+                    <div className="callout" style={{ background: '#ecfdf5', color: '#166534', borderColor: '#bbf7d0', marginBottom: '0.75rem' }}>
+                        Entry created.
+                    </div>
+                )}
 
                 <label style={{ fontSize: '0.8rem' }}>Crew Member</label>
                 <select name="employeeId" required>

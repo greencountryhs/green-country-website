@@ -2,9 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
     isExactDuplicate,
     rangesOverlap,
+    TIME_ENTRY_DUPLICATE_MESSAGE,
+    TIME_ENTRY_OPEN_SHIFT_MESSAGE,
     TIME_ENTRY_OVERLAP_MESSAGE,
     parseTimeEntryRange
 } from './overlap';
+import { timeEntryFailure } from './errors';
 
 const OPEN_END_SENTINEL = '9999-12-31T23:59:59.999Z';
 
@@ -48,12 +51,49 @@ export async function findConflictingTimeEntries(
     });
 }
 
+function conflictMessageFor(
+    params: ConflictCheckParams,
+    conflicts: Array<{ clock_in: string; clock_out: string | null }>
+): string {
+    const { start, end } = parseTimeEntryRange(params.clockIn, params.clockOut);
+
+    for (const row of conflicts) {
+        const otherStart = new Date(row.clock_in);
+        const otherEnd = row.clock_out ? new Date(row.clock_out) : null;
+        if (isExactDuplicate(start, end, otherStart, otherEnd)) {
+            return TIME_ENTRY_DUPLICATE_MESSAGE;
+        }
+    }
+
+    if (params.clockOut === null) {
+        for (const row of conflicts) {
+            if (row.clock_out === null) {
+                return TIME_ENTRY_OPEN_SHIFT_MESSAGE;
+            }
+        }
+    }
+
+    return TIME_ENTRY_OVERLAP_MESSAGE;
+}
+
+export async function checkTimeEntryConflict(
+    supabase: SupabaseClient,
+    params: ConflictCheckParams
+): Promise<{ ok: true } | { ok: false; error: string }> {
+    const conflicts = await findConflictingTimeEntries(supabase, params);
+    if (conflicts.length === 0) {
+        return { ok: true as const };
+    }
+    return timeEntryFailure(conflictMessageFor(params, conflicts));
+}
+
+/** @deprecated Prefer checkTimeEntryConflict for user-facing flows. */
 export async function assertNoTimeEntryConflict(
     supabase: SupabaseClient,
     params: ConflictCheckParams
 ): Promise<void> {
-    const conflicts = await findConflictingTimeEntries(supabase, params);
-    if (conflicts.length > 0) {
-        throw new Error(TIME_ENTRY_OVERLAP_MESSAGE);
+    const result = await checkTimeEntryConflict(supabase, params);
+    if (result.ok === false) {
+        throw new Error(result.error);
     }
 }

@@ -2,7 +2,6 @@
 
 import { useState, type CSSProperties } from 'react'
 import { clockOutTimeEntry } from '@/lib/time/actions'
-import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap'
 
 const labelStyle: CSSProperties = { fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }
 const inputStyle: CSSProperties = {
@@ -16,14 +15,23 @@ const inputStyle: CSSProperties = {
     boxSizing: 'border-box'
 }
 
+const errorBannerStyle: CSSProperties = {
+    background: '#fef2f2',
+    color: '#991b1b',
+    borderColor: '#fecaca',
+    marginBottom: '0.75rem'
+}
+
 export function ClockOutQuestionnaire({
     entryId,
     onCancel,
-    onSuccess
+    onSuccess,
+    onError
 }: {
     entryId: string
     onCancel: () => void
     onSuccess: () => void
+    onError?: (message: string) => void
 }) {
     const [workSummary, setWorkSummary] = useState('')
     const [supplyNeeds, setSupplyNeeds] = useState('')
@@ -31,27 +39,38 @@ export function ClockOutQuestionnaire({
     const [blockers, setBlockers] = useState('')
     const [followUp, setFollowUp] = useState(false)
     const [busy, setBusy] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+    function reportError(message: string) {
+        setErrorMessage(message)
+        onError?.(message)
+    }
 
     async function submit() {
         const w = workSummary.trim()
         const s = supplyNeeds.trim()
         if (!w || !s) {
-            alert('Please answer: what you worked on today, and tools/materials low or needed.')
+            reportError('Please answer: what you worked on today, and tools/materials low or needed.')
             return
         }
         setBusy(true)
+        setErrorMessage(null)
         try {
-            await clockOutTimeEntry(entryId, {
+            const result = await clockOutTimeEntry(entryId, {
                 workSummary: w,
                 supplyNeeds: s,
                 dayNotes: dayNotes.trim() || undefined,
                 blockers: blockers.trim() || undefined,
                 followUpNeeded: followUp
             })
+            if (result.ok === false) {
+                reportError(result.error)
+                return
+            }
             onSuccess()
         } catch (error) {
             console.error('Clock-out questionnaire:', error)
-            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE)
+            reportError('An unexpected error occurred while clocking out.')
         } finally {
             setBusy(false)
         }
@@ -68,6 +87,12 @@ export function ClockOutQuestionnaire({
             }}
         >
             <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>Quick end-of-day check</p>
+
+            {errorMessage && (
+                <div className="callout" style={errorBannerStyle} role="alert">
+                    {errorMessage}
+                </div>
+            )}
 
             <div>
                 <label style={labelStyle}>

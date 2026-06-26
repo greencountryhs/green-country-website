@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { clockInTimeEntry } from '@/lib/time/actions';
-import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap';
+
+const errorBannerStyle = {
+    background: '#fef2f2',
+    color: '#991b1b',
+    borderColor: '#fecaca',
+    marginBottom: '0.75rem'
+} as const;
 import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
 
 export function CrewTimeClock({ employeeId }: { employeeId: string }) {
@@ -42,9 +48,13 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
         if (entryId) return;
 
         try {
-            const data = await clockInTimeEntry(employeeId);
-            setEntryId(data.id);
-            setClockInTime(data.clock_in);
+            const result = await clockInTimeEntry(employeeId);
+            if (result.ok === false) {
+                setActionMessage(result.error);
+                return;
+            }
+            setEntryId(result.data.id);
+            setClockInTime(result.data.clock_in);
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
@@ -54,7 +64,7 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
             }
         } catch (error) {
             console.error('Error clocking in:', error);
-            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
+            setActionMessage('An unexpected error occurred while clocking in.');
         }
     }
 
@@ -89,14 +99,22 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
                 </p>
             )}
 
+            {actionMessage && (
+                <div className="callout" style={errorBannerStyle} role="alert">
+                    {actionMessage}
+                </div>
+            )}
+
             <div style={{ marginTop: '0.5rem' }}>
                 {isWorking ? (
                     showClockOutForm && entryId ? (
                         <ClockOutQuestionnaire
                             entryId={entryId}
                             onCancel={() => setShowClockOutForm(false)}
+                            onError={(message) => setActionMessage(message)}
                             onSuccess={() => {
                                 setShowClockOutForm(false);
+                                setActionMessage(null);
                                 setEntryId(null);
                                 setClockInTime(null);
                             }}

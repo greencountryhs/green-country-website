@@ -1,6 +1,10 @@
-/** Shown when a create/edit/clock-in would overlap another entry for the same employee. */
-export const TIME_ENTRY_OVERLAP_MESSAGE =
-    'This time entry overlaps an existing entry for this employee.';
+export {
+    TIME_ENTRY_OVERLAP_MESSAGE,
+    TIME_ENTRY_DUPLICATE_MESSAGE,
+    TIME_ENTRY_OPEN_SHIFT_MESSAGE,
+    mapTimeEntryDbError,
+    resolveTimeEntryFailure
+} from './errors';
 
 /**
  * Half-open interval [start, end). `end === null` means an open (still clocked-in) shift.
@@ -25,13 +29,6 @@ export function isExactDuplicate(
     const aEndKey = aEnd ? aEnd.getTime() : null;
     const bEndKey = bEnd ? bEnd.getTime() : null;
     return aStart.getTime() === bStart.getTime() && aEndKey === bEndKey;
-}
-
-export function throwIfTimeEntryConflictError(error: { code?: string; message: string }): never {
-    if (error.code === '23P01' || error.code === '23505') {
-        throw new Error(TIME_ENTRY_OVERLAP_MESSAGE);
-    }
-    throw new Error(error.message);
 }
 
 export function parseTimeEntryRange(clockIn: string, clockOut: string | null): { start: Date; end: Date | null } {

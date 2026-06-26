@@ -10,7 +10,12 @@ import {
     clockInTimeEntry,
     clockOutTimeEntry
 } from '@/lib/time/actions';
-import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap';
+
+const errorBannerStyle = {
+    background: '#fef2f2',
+    color: '#991b1b',
+    borderColor: '#fecaca'
+} as const;
 
 type Employee = {
     id: string;
@@ -44,6 +49,7 @@ export default function TimeTrackingPage() {
     const [loading, setLoading] = useState(true);
     const [role, setRole] = useState<string | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [selfClockOutForm, setSelfClockOutForm] = useState<{ employeeId: string; entryId: string } | null>(null);
 
@@ -54,6 +60,7 @@ export default function TimeTrackingPage() {
     async function fetchData() {
         setLoading(true);
         setActionMessage(null);
+        setActionError(null);
 
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
@@ -118,6 +125,7 @@ export default function TimeTrackingPage() {
 
     async function handleStartDay() {
         setActionMessage(null);
+        setActionError(null);
         const inactiveEmps = employees.filter(emp => emp.current_entry_id === null);
         const activeCount = employees.length - inactiveEmps.length;
 
@@ -129,7 +137,7 @@ export default function TimeTrackingPage() {
         try {
             const result = await bulkClockInTimeEntries(inactiveEmps.map((emp) => emp.id));
             if (result.error) {
-                alert(result.error);
+                setActionError(result.error);
             }
             setActionMessage(
                 `Clocked in ${result.clockedIn} employees, skipped ${result.skipped + activeCount} already active or blocked`
@@ -137,12 +145,13 @@ export default function TimeTrackingPage() {
             fetchData();
         } catch (error) {
             console.error('Error in Start Day:', error);
-            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
+            setActionError('An unexpected error occurred during bulk clock-in.');
         }
     }
 
     async function handleEndDay() {
         setActionMessage(null);
+        setActionError(null);
         const activeEmps = employees.filter(emp => emp.current_entry_id !== null);
         const inactiveCount = employees.length - activeEmps.length;
 
@@ -153,18 +162,22 @@ export default function TimeTrackingPage() {
 
         try {
             const result = await bulkClockOutTimeEntries(activeEmps.map((e) => e.current_entry_id!));
+            if (result.error) {
+                setActionError(result.error);
+            }
             setActionMessage(
                 `Clocked out ${result.clockedOut} employees, skipped ${result.skipped + inactiveCount} not active or blocked`
             );
             fetchData();
         } catch (error) {
             console.error('Error in End Day:', error);
-            alert(error instanceof Error ? error.message : 'Failed to end day');
+            setActionError('An unexpected error occurred during bulk clock-out.');
         }
     }
 
     async function handleClockIn(employeeId: string) {
         setActionMessage(null);
+        setActionError(null);
 
         const employee = employees.find(emp => emp.id === employeeId);
         if (employee && employee.current_entry_id !== null) {
@@ -173,10 +186,14 @@ export default function TimeTrackingPage() {
         }
 
         try {
-            const data = await clockInTimeEntry(employeeId);
+            const result = await clockInTimeEntry(employeeId);
+        if (result.ok === false) {
+            setActionError(result.error);
+            return;
+        }
             setEmployees(employees.map(emp =>
                 emp.id === employeeId
-                    ? { ...emp, current_entry_id: data.id, clock_in_time: data.clock_in }
+                    ? { ...emp, current_entry_id: result.data.id, clock_in_time: result.data.clock_in }
                     : emp
             ));
 
@@ -185,14 +202,19 @@ export default function TimeTrackingPage() {
             }
         } catch (error) {
             console.error('Error clocking in:', error);
-            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
+            setActionError('An unexpected error occurred while clocking in.');
         }
     }
 
     async function handleClockOut(employeeId: string, entryId: string) {
         setActionMessage(null);
+        setActionError(null);
         try {
-            await clockOutTimeEntry(entryId);
+            const result = await clockOutTimeEntry(entryId);
+        if (result.ok === false) {
+            setActionError(result.error);
+            return;
+        }
             setEmployees(employees.map(emp =>
                 emp.id === employeeId
                     ? { ...emp, current_entry_id: null, clock_in_time: null }
@@ -200,7 +222,7 @@ export default function TimeTrackingPage() {
             ));
         } catch (error) {
             console.error('Error clocking out:', error);
-            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
+            setActionError('An unexpected error occurred while clocking out.');
         }
     }
 
@@ -244,6 +266,12 @@ export default function TimeTrackingPage() {
                 <p className="section-lead" style={{ marginBottom: '1.5rem' }}>
                     Individual Actions: Select a crew member below to clock them in or out individually.
                 </p>
+
+            {actionError && (
+                <div className="callout" style={{ ...errorBannerStyle, marginBottom: '1rem' }} role="alert">
+                    {actionError}
+                </div>
+            )}
 
             {actionMessage && (
                 <div className="callout" style={{ marginBottom: '2rem', background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
@@ -297,8 +325,10 @@ export default function TimeTrackingPage() {
                                             <ClockOutQuestionnaire
                                                 entryId={selfClockOutForm.entryId}
                                                 onCancel={() => setSelfClockOutForm(null)}
+                                                onError={(message) => setActionError(message)}
                                                 onSuccess={() => {
                                                     setSelfClockOutForm(null);
+                                                    setActionError(null);
                                                     setEmployees((prev) =>
                                                         prev.map((e) =>
                                                             e.id === emp.id

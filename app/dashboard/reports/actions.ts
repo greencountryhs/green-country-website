@@ -3,10 +3,24 @@
 import { correctTimeEntry, createManualTimeEntry, deleteTimeEntry } from '@/lib/reports'
 import { revalidatePath } from 'next/cache'
 
+export type ReportFormState = {
+    error: string | null
+    success: boolean
+}
+
+export const initialReportFormState: ReportFormState = { error: null, success: false }
+
+const errorBannerStyle = {
+    background: '#fef2f2',
+    color: '#991b1b',
+    borderColor: '#fecaca',
+    marginBottom: '0.75rem'
+} as const
+
 // Parse a datetime-local string (YYYY-MM-DDThh:mm) originating from the America/Chicago 
 // timezone into an exact UTC ISO string without relying on the Node.js server's timezone env.
-function parseLocalTime(localStr: string | null) {
-    if (!localStr) return null;
+function parseLocalTime(localStr: string | null): { iso: string } | { error: string } {
+    if (!localStr) return { error: 'A date and time is required.' };
     
     const [datePart, timePart] = localStr.split('T');
     const [y, m, d] = datePart.split('-').map(Number);
@@ -46,34 +60,84 @@ function parseLocalTime(localStr: string | null) {
 
     const targetH = h === 24 ? 0 : h;
     if (verifyH !== targetH || verifyMin !== min) {
-        throw new Error(`Invalid local time: The time ${localStr} does not exist in the America/Chicago timezone due to daylight savings transitions.`);
+        return { error: `Invalid local time: The time ${localStr} does not exist in the America/Chicago timezone due to daylight savings transitions.` };
     }
 
-    return resultIso;
+    return { iso: resultIso };
 }
 
-export async function correctTimeEntryAction(formData: FormData) {
-    const entryId = formData.get('entryId') as string
-    const clockIn = formData.get('clockIn') as string
-    const clockOut = formData.get('clockOut') as string
-    const reason = formData.get('reason') as string
+export async function correctTimeEntryAction(
+    _prevState: ReportFormState,
+    formData: FormData
+): Promise<ReportFormState> {
+    try {
+        const entryId = formData.get('entryId') as string
+        const clockIn = formData.get('clockIn') as string
+        const clockOut = formData.get('clockOut') as string
+        const reason = formData.get('reason') as string
 
-    if (!entryId || !clockIn || !reason) throw new Error("Missing required fields")
+        if (!entryId || !clockIn || !reason) {
+            return { error: 'Missing required fields', success: false }
+        }
 
-    await correctTimeEntry(entryId, parseLocalTime(clockIn)!, parseLocalTime(clockOut), reason)
-    revalidatePath('/dashboard/reports')
+        const parsedIn = parseLocalTime(clockIn)
+        if ('error' in parsedIn) {
+            return { error: parsedIn.error, success: false }
+        }
+
+        const parsedOut = clockOut ? parseLocalTime(clockOut) : { iso: null as string | null }
+        if ('error' in parsedOut) {
+            return { error: parsedOut.error, success: false }
+        }
+
+        const result = await correctTimeEntry(entryId, parsedIn.iso, parsedOut.iso, reason)
+        if (result.ok === false) {
+            return { error: result.error, success: false }
+        }
+
+        revalidatePath('/dashboard/reports')
+        return { error: null, success: true }
+    } catch (err) {
+        console.error('correctTimeEntryAction unexpected error:', err)
+        return { error: 'An unexpected error occurred while saving the edit.', success: false }
+    }
 }
 
-export async function createManualTimeEntryAction(formData: FormData) {
-    const employeeId = formData.get('employeeId') as string
-    const clockIn = formData.get('clockIn') as string
-    const clockOut = formData.get('clockOut') as string
-    const reason = formData.get('reason') as string
+export async function createManualTimeEntryAction(
+    _prevState: ReportFormState,
+    formData: FormData
+): Promise<ReportFormState> {
+    try {
+        const employeeId = formData.get('employeeId') as string
+        const clockIn = formData.get('clockIn') as string
+        const clockOut = formData.get('clockOut') as string
+        const reason = formData.get('reason') as string
 
-    if (!employeeId || !clockIn || !clockOut || !reason) throw new Error("Missing required fields")
+        if (!employeeId || !clockIn || !clockOut || !reason) {
+            return { error: 'Missing required fields', success: false }
+        }
 
-    await createManualTimeEntry(employeeId, parseLocalTime(clockIn)!, parseLocalTime(clockOut)!, reason)
-    revalidatePath('/dashboard/reports')
+        const parsedIn = parseLocalTime(clockIn)
+        if ('error' in parsedIn) {
+            return { error: parsedIn.error, success: false }
+        }
+
+        const parsedOut = parseLocalTime(clockOut)
+        if ('error' in parsedOut) {
+            return { error: parsedOut.error, success: false }
+        }
+
+        const result = await createManualTimeEntry(employeeId, parsedIn.iso, parsedOut.iso, reason)
+        if (result.ok === false) {
+            return { error: result.error, success: false }
+        }
+
+        revalidatePath('/dashboard/reports')
+        return { error: null, success: true }
+    } catch (err) {
+        console.error('createManualTimeEntryAction unexpected error:', err)
+        return { error: 'An unexpected error occurred while creating the entry.', success: false }
+    }
 }
 
 export async function deleteTimeEntryAction(formData: FormData) {
@@ -85,3 +149,5 @@ export async function deleteTimeEntryAction(formData: FormData) {
     await deleteTimeEntry(entryId, reason)
     revalidatePath('/dashboard/reports')
 }
+
+export { errorBannerStyle }
