@@ -6,6 +6,8 @@ export type PayrollTimeEntry = {
     clock_in: string;
     clock_out: string | null;
     duration_hours: number | null;
+    manual_entry?: boolean;
+    was_edited?: boolean;
 };
 
 export type PayrollTransactionRecord = {
@@ -48,6 +50,13 @@ export type PayrollPeriodSummary = {
     totalNetRemainingOwed: number;
     employeeSummaries: EmployeePayrollSummary[];
     activeEmployees: Array<{ id: string; display_name: string }>;
+};
+
+export type CrewPaySummary = {
+    payPeriodStart: string;
+    payPeriodEnd: string;
+    payday: string;
+    employee: EmployeePayrollSummary;
 };
 
 /** @deprecated Use PayrollPeriodSummary */

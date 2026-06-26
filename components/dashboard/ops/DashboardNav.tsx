@@ -9,11 +9,13 @@ type NavItem = {
     label: string
     icon: Parameters<typeof OpsIcon>[0]['name']
     adminOnly?: boolean
+    crewOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
     { href: '/dashboard', label: 'Home', icon: 'dashboard' },
     { href: '/dashboard/crew', label: 'Crew Workspace', icon: 'tasks' },
+    { href: '/dashboard/my-pay', label: 'My Pay', icon: 'payroll', crewOnly: true },
     { href: '/dashboard/time', label: 'Time Clock', icon: 'time' },
     { href: '/dashboard/tasks', label: 'My Tasks', icon: 'tasks' },
     { href: '/dashboard/employees', label: 'Crew', icon: 'crew', adminOnly: true },
@@ -31,11 +33,17 @@ function isActive(pathname: string, href: string) {
 
 export function DashboardNav({ isAdmin }: { isAdmin: boolean }) {
     const pathname = usePathname()
-    const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin)
+    const items = NAV_ITEMS.filter((item) => {
+        if (item.adminOnly && !isAdmin) return false
+        if (item.crewOnly && isAdmin) return false
+        return true
+    })
 
-    const fieldItems = items.filter((i) =>
-        ['/dashboard', '/dashboard/crew', '/dashboard/time', '/dashboard/tasks', '/dashboard/resources'].includes(i.href)
-    )
+    const fieldHrefs = isAdmin
+        ? ['/dashboard', '/dashboard/crew', '/dashboard/time', '/dashboard/tasks', '/dashboard/resources']
+        : ['/dashboard', '/dashboard/crew', '/dashboard/my-pay', '/dashboard/time', '/dashboard/tasks', '/dashboard/resources']
+
+    const fieldItems = items.filter((i) => fieldHrefs.includes(i.href))
     const adminItems = items.filter((i) => i.adminOnly)
 
     return (

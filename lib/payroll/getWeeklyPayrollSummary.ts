@@ -5,15 +5,8 @@ import {
     getPayPeriodForPayday,
     resolvePaydayParam
 } from './payPeriod';
-import { computePayrollFinancials } from './transactionTypes';
-import { PayrollPeriodSummary, EmployeePayrollSummary, PayrollTransactionRecord } from './types';
-
-function hourlyRateFromCents(payRateCents: number | null | undefined): number | null {
-    if (payRateCents === null || payRateCents === undefined) {
-        return null;
-    }
-    return payRateCents / 100;
-}
+import { buildEmployeePayrollSummary } from './buildEmployeePayrollSummary';
+import { PayrollPeriodSummary, PayrollTransactionRecord } from './types';
 
 export async function getWeeklyPayrollSummary(paydayParam?: string): Promise<{ data: PayrollPeriodSummary | null, error: string | null }> {
     const supabase = await createClient();
@@ -55,7 +48,7 @@ export async function getWeeklyPayrollSummary(paydayParam?: string): Promise<{ d
 
     const { data: timeEntries, error: teError } = await supabase
         .from('time_entries')
-        .select('id, employee_id, clock_in, clock_out')
+        .select('id, employee_id, clock_in, clock_out, manual_entry, edited_at')
         .gte('clock_in', startUtc.toISOString())
         .lt('clock_in', endExclusiveUtc.toISOString());
 
@@ -80,109 +73,50 @@ export async function getWeeklyPayrollSummary(paydayParam?: string): Promise<{ d
         transactionsByEmployee.set(row.employee_id, list);
     }
 
-    const employeeMap = new Map<string, EmployeePayrollSummary>();
-
-    employees.forEach((emp) => {
-        const payRateCents = emp.pay_rate_cents ?? null;
-        const hourlyRate = hourlyRateFromCents(payRateCents);
-        const transactions = transactionsByEmployee.get(emp.id) || [];
-        const financials = computePayrollFinancials(null, transactions);
-
-        employeeMap.set(emp.id, {
-            employee_id: emp.id,
-            display_name: emp.display_name,
-            hourly_rate: hourlyRate,
-            pay_rate_cents: payRateCents,
-            total_hours: 0,
-            entry_count: 0,
-            open_entry_count: 0,
-            estimated_gross_pay: hourlyRate !== null ? 0 : null,
-            additions: financials.additions,
-            deductions: financials.deductions,
-            paid_and_advanced: financials.paid_and_advanced,
-            net_remaining_owed: financials.net_remaining_owed,
-            entries: [],
-            transactions
-        });
-    });
+    const entriesByEmployee = new Map<string, typeof timeEntries>();
+    for (const row of timeEntries || []) {
+        const list = entriesByEmployee.get(row.employee_id) || [];
+        list.push(row);
+        entriesByEmployee.set(row.employee_id, list);
+    }
 
     let overallTotalHours = 0;
     let overallOpenEntries = 0;
     let overallEstimatedPay = 0;
     let employeesWithHoursCount = 0;
-
-    (timeEntries || []).forEach((te) => {
-        const empSummary = employeeMap.get(te.employee_id);
-        if (!empSummary) return;
-
-        let durationHours: number | null = null;
-        const isOpen = te.clock_out === null;
-
-        if (!isOpen) {
-            const ms = new Date(te.clock_out).getTime() - new Date(te.clock_in).getTime();
-            durationHours = ms / (1000 * 60 * 60);
-            empSummary.total_hours += durationHours;
-            overallTotalHours += durationHours;
-        }
-
-        empSummary.entry_count += 1;
-        if (isOpen) {
-            empSummary.open_entry_count += 1;
-            overallOpenEntries += 1;
-        }
-
-        empSummary.entries.push({
-            id: te.id,
-            employee_id: te.employee_id,
-            clock_in: te.clock_in,
-            clock_out: te.clock_out,
-            duration_hours: durationHours
-        });
-    });
-
-    const finalEmployeeSummaries: EmployeePayrollSummary[] = [];
-
-    Array.from(employeeMap.values()).forEach((summary) => {
-        const hasHours = summary.entry_count > 0;
-        const hasTransactions = summary.transactions.length > 0;
-
-        if (!hasHours && !hasTransactions) {
-            return;
-        }
-
-        if (hasHours) {
-            employeesWithHoursCount += 1;
-            if (summary.hourly_rate !== null) {
-                summary.estimated_gross_pay = summary.total_hours * summary.hourly_rate;
-                overallEstimatedPay += summary.estimated_gross_pay;
-            }
-            summary.entries.sort((a, b) => new Date(a.clock_in).getTime() - new Date(b.clock_in).getTime());
-        }
-
-        const financials = computePayrollFinancials(summary.estimated_gross_pay, summary.transactions);
-        summary.additions = financials.additions;
-        summary.deductions = financials.deductions;
-        summary.paid_and_advanced = financials.paid_and_advanced;
-        summary.net_remaining_owed = financials.net_remaining_owed;
-
-        finalEmployeeSummaries.push(summary);
-    });
-
-    finalEmployeeSummaries.sort((a, b) => a.display_name.localeCompare(b.display_name));
-
     let totalAdditions = 0;
     let totalDeductions = 0;
     let totalPaidAndAdvanced = 0;
     let totalNetRemainingOwed = 0;
 
-    finalEmployeeSummaries.forEach((summary) => {
+    const finalEmployeeSummaries = employees
+        .map((emp) =>
+            buildEmployeePayrollSummary(
+                emp,
+                entriesByEmployee.get(emp.id) || [],
+                transactionsByEmployee.get(emp.id) || []
+            )
+        )
+        .filter((summary) => summary.entry_count > 0 || summary.transactions.length > 0);
+
+    for (const summary of finalEmployeeSummaries) {
+        overallTotalHours += summary.total_hours;
+        overallOpenEntries += summary.open_entry_count;
+        if (summary.entry_count > 0) {
+            employeesWithHoursCount += 1;
+        }
+        if (summary.estimated_gross_pay !== null) {
+            overallEstimatedPay += summary.estimated_gross_pay;
+        }
         totalAdditions += summary.additions;
         totalDeductions += summary.deductions;
         totalPaidAndAdvanced += summary.paid_and_advanced;
         if (summary.net_remaining_owed !== null) {
             totalNetRemainingOwed += summary.net_remaining_owed;
         }
-    });
+    }
+
+    finalEmployeeSummaries.sort((a, b) => a.display_name.localeCompare(b.display_name));
 
     const result: PayrollPeriodSummary = {
         payPeriodStart: period.periodStart,

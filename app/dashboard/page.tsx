@@ -23,6 +23,13 @@ const TILES: HomeTile[] = [
         variant: 'primary'
     },
     {
+        href: '/dashboard/my-pay',
+        title: 'My Pay',
+        description: 'Your hours, pay estimate, and adjustments for this pay period.',
+        icon: 'payroll',
+        crewOnly: true
+    },
+    {
         href: '/dashboard/time',
         title: 'Time Clock',
         description: 'Clock in or out for yourself or the crew.',
