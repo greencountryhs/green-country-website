@@ -1,8 +1,17 @@
 import { PageHeader } from '@/components/dashboard/ops/PageHeader'
 import { OpsIcon } from '@/components/dashboard/ops/Icon'
 import { OPS_RESOURCES, RESOURCE_CATEGORY_LABELS } from '@/lib/dashboard/resources'
+import { createClient } from '@/utils/supabase/server'
 
-export default function ResourcesPage() {
+export default async function ResourcesPage() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = user
+        ? await supabase.from('profiles').select('role').eq('id', user.id).single()
+        : { data: null }
+
+    const isAdmin = profile?.role === 'admin'
+
     const grouped = OPS_RESOURCES.reduce<Record<string, typeof OPS_RESOURCES>>((acc, item) => {
         const key = item.category
         acc[key] = acc[key] || []
@@ -56,8 +65,13 @@ export default function ResourcesPage() {
             </div>
 
             <div className="ops-callout ops-callout--info" style={{ marginTop: '2rem' }}>
-                Need something added? Contact the office — resource links can be updated in{' '}
-                <code style={{ fontSize: '0.85rem' }}>lib/dashboard/resources.ts</code>.
+                Need something added? Contact Jon.
+                {isAdmin && (
+                    <>
+                        {' '}Resource links can be updated in{' '}
+                        <code style={{ fontSize: '0.85rem' }}>lib/dashboard/resources.ts</code>.
+                    </>
+                )}
             </div>
         </div>
     )
