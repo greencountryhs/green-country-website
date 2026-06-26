@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { createClient } from '@/utils/supabase/client'
+import { clockOutTimeEntry } from '@/lib/time/actions'
+import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap'
 
 const labelStyle: CSSProperties = { fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.35rem' }
 const inputStyle: CSSProperties = {
@@ -39,27 +40,21 @@ export function ClockOutQuestionnaire({
             return
         }
         setBusy(true)
-        const supabase = createClient()
-        const now = new Date().toISOString()
-        const { error } = await supabase
-            .from('time_entries')
-            .update({
-                clock_out: now,
-                clock_out_work_summary: w,
-                clock_out_supply_needs: s,
-                clock_out_day_notes: dayNotes.trim() || null,
-                clock_out_blockers: blockers.trim() || null,
-                clock_out_follow_up_needed: followUp
+        try {
+            await clockOutTimeEntry(entryId, {
+                workSummary: w,
+                supplyNeeds: s,
+                dayNotes: dayNotes.trim() || undefined,
+                blockers: blockers.trim() || undefined,
+                followUpNeeded: followUp
             })
-            .eq('id', entryId)
-
-        setBusy(false)
-        if (error) {
+            onSuccess()
+        } catch (error) {
             console.error('Clock-out questionnaire:', error)
-            alert('Failed to clock out')
-            return
+            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE)
+        } finally {
+            setBusy(false)
         }
-        onSuccess()
     }
 
     return (

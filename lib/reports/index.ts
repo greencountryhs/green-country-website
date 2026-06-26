@@ -4,6 +4,8 @@ import { createClient } from '@/utils/supabase/server'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
 import { revalidatePath } from 'next/cache'
+import { assertNoTimeEntryConflict } from '@/lib/time/validateTimeEntry'
+import { throwIfTimeEntryConflictError } from '@/lib/time/overlap'
 
 // We will shift all UTC dates to local 'America/Chicago' dates for bucketing
 function getLocalBusinessDateString(utcIsoString: string) {
@@ -187,6 +189,23 @@ export async function correctTimeEntry(entryId: string, newClockIn: string, newC
 
     if (!user) throw new Error("Unauthorized")
 
+    const { data: entryRow } = await supabase
+        .from('time_entries')
+        .select('employee_id')
+        .eq('id', entryId)
+        .single()
+
+    if (!entryRow?.employee_id) {
+        throw new Error('Time entry not found')
+    }
+
+    await assertNoTimeEntryConflict(supabase, {
+        employeeId: entryRow.employee_id,
+        clockIn: newClockIn,
+        clockOut: newClockOut,
+        excludeEntryId: entryId
+    })
+
     const { error } = await supabase
         .from('time_entries')
         .update({
@@ -198,9 +217,12 @@ export async function correctTimeEntry(entryId: string, newClockIn: string, newC
         })
         .eq('id', entryId)
 
-    if (error) console.error("Error correcting time entry:", error)
+    if (error) {
+        console.error("Error correcting time entry:", error)
+        throwIfTimeEntryConflictError(error)
+    }
     revalidatePath('/dashboard/reports')
-    return { error }
+    revalidatePath('/dashboard/payroll')
 }
 
 export async function createManualTimeEntry(employeeId: string, clockIn: string, clockOut: string, reason: string) {
@@ -211,6 +233,12 @@ export async function createManualTimeEntry(employeeId: string, clockIn: string,
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) throw new Error("Unauthorized")
+
+    await assertNoTimeEntryConflict(supabase, {
+        employeeId,
+        clockIn,
+        clockOut
+    })
 
     const { error } = await supabase
         .from('time_entries')
@@ -224,9 +252,12 @@ export async function createManualTimeEntry(employeeId: string, clockIn: string,
             edit_reason: reason
         }])
 
-    if (error) console.error("Error creating manual time entry:", error)
+    if (error) {
+        console.error("Error creating manual time entry:", error)
+        throwIfTimeEntryConflictError(error)
+    }
     revalidatePath('/dashboard/reports')
-    return { error }
+    revalidatePath('/dashboard/payroll')
 }
 
 export async function deleteTimeEntry(entryId: string, reason?: string) {

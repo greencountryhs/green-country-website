@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { clockInTimeEntry } from '@/lib/time/actions';
+import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap';
 import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
 
 export function CrewTimeClock({ employeeId }: { employeeId: string }) {
@@ -39,20 +41,10 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
         setActionMessage(null);
         if (entryId) return;
 
-        const now = new Date().toISOString();
-        const { data, error } = await supabase
-            .from('time_entries')
-            .insert([{ employee_id: employeeId, clock_in: now }])
-            .select()
-            .single();
-
-        if (error) {
-            console.error('Error clocking in:', error);
-            alert('Failed to clock in');
-        } else if (data) {
+        try {
+            const data = await clockInTimeEntry(employeeId);
             setEntryId(data.id);
             setClockInTime(data.clock_in);
-            // Match Time Tracking page: redirect non-admins to Today's Tasks after clock-in
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
@@ -60,6 +52,9 @@ export function CrewTimeClock({ employeeId }: { employeeId: string }) {
                     window.location.href = '/dashboard/tasks';
                 }
             }
+        } catch (error) {
+            console.error('Error clocking in:', error);
+            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
         }
     }
 

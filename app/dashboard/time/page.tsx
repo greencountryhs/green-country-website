@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { ClockOutQuestionnaire } from '@/components/dashboard/ClockOutQuestionnaire';
+import {
+    bulkClockInTimeEntries,
+    bulkClockOutTimeEntries,
+    clockInTimeEntry,
+    clockOutTimeEntry
+} from '@/lib/time/actions';
+import { TIME_ENTRY_OVERLAP_MESSAGE } from '@/lib/time/overlap';
 
 type Employee = {
     id: string;
@@ -119,19 +126,18 @@ export default function TimeTrackingPage() {
             return;
         }
 
-        const now = new Date().toISOString();
-        const inserts = inactiveEmps.map(emp => ({ employee_id: emp.id, clock_in: now }));
-
-        const { error } = await supabase
-            .from('time_entries')
-            .insert(inserts);
-
-        if (error) {
-            console.error('Error in Start Day:', error);
-            alert('Failed to start day');
-        } else {
-            setActionMessage(`Clocked in ${inactiveEmps.length} employees, skipped ${activeCount} already active`);
+        try {
+            const result = await bulkClockInTimeEntries(inactiveEmps.map((emp) => emp.id));
+            if (result.error) {
+                alert(result.error);
+            }
+            setActionMessage(
+                `Clocked in ${result.clockedIn} employees, skipped ${result.skipped + activeCount} already active or blocked`
+            );
             fetchData();
+        } catch (error) {
+            console.error('Error in Start Day:', error);
+            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
         }
     }
 
@@ -145,73 +151,56 @@ export default function TimeTrackingPage() {
             return;
         }
 
-        const now = new Date().toISOString();
-        const entryIds = activeEmps.map(e => e.current_entry_id!);
-
-        const { error } = await supabase
-            .from('time_entries')
-            .update({ clock_out: now })
-            .in('id', entryIds);
-
-        if (error) {
-            console.error('Error in End Day:', error);
-            alert('Failed to end day');
-        } else {
-            setActionMessage(`Clocked out ${activeEmps.length} employees, skipped ${inactiveCount} not active`);
+        try {
+            const result = await bulkClockOutTimeEntries(activeEmps.map((e) => e.current_entry_id!));
+            setActionMessage(
+                `Clocked out ${result.clockedOut} employees, skipped ${result.skipped + inactiveCount} not active or blocked`
+            );
             fetchData();
+        } catch (error) {
+            console.error('Error in End Day:', error);
+            alert(error instanceof Error ? error.message : 'Failed to end day');
         }
     }
 
     async function handleClockIn(employeeId: string) {
         setActionMessage(null);
 
-        // Prevent duplicate clock-ins
         const employee = employees.find(emp => emp.id === employeeId);
         if (employee && employee.current_entry_id !== null) {
             console.warn('Employee is already clocked in:', employeeId);
             return;
         }
 
-        const now = new Date().toISOString();
-        const { data, error } = await supabase
-            .from('time_entries')
-            .insert([{ employee_id: employeeId, clock_in: now }])
-            .select();
-
-        if (error) {
-            console.error('Error clocking in:', error);
-            alert('Failed to clock in');
-        } else if (data && data.length > 0) {
+        try {
+            const data = await clockInTimeEntry(employeeId);
             setEmployees(employees.map(emp =>
                 emp.id === employeeId
-                    ? { ...emp, current_entry_id: data[0].id, clock_in_time: data[0].clock_in }
+                    ? { ...emp, current_entry_id: data.id, clock_in_time: data.clock_in }
                     : emp
             ));
 
-            // Redirect straight to tasks
             if (role !== 'admin') {
                 window.location.href = '/dashboard/tasks';
             }
+        } catch (error) {
+            console.error('Error clocking in:', error);
+            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
         }
     }
 
     async function handleClockOut(employeeId: string, entryId: string) {
         setActionMessage(null);
-        const now = new Date().toISOString();
-        const { error } = await supabase
-            .from('time_entries')
-            .update({ clock_out: now })
-            .eq('id', entryId);
-
-        if (error) {
-            console.error('Error clocking out:', error);
-            alert('Failed to clock out');
-        } else {
+        try {
+            await clockOutTimeEntry(entryId);
             setEmployees(employees.map(emp =>
                 emp.id === employeeId
                     ? { ...emp, current_entry_id: null, clock_in_time: null }
                     : emp
             ));
+        } catch (error) {
+            console.error('Error clocking out:', error);
+            alert(error instanceof Error ? error.message : TIME_ENTRY_OVERLAP_MESSAGE);
         }
     }
 
