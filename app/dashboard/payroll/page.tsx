@@ -1,14 +1,20 @@
 import { redirect } from 'next/navigation';
-import { getWeeklyPayrollSummary } from '@/lib/payroll/getWeeklyPayrollSummary';
+import { getAdjacentPayday, getWeeklyPayrollSummary } from '@/lib/payroll/getWeeklyPayrollSummary';
+import { formatPayPeriodLabel, formatPaydayLabel } from '@/lib/payroll/payPeriod';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PayrollPage(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined } }) {
     const searchParams = await Promise.resolve(props.searchParams);
-    const weekStartParam = typeof searchParams?.weekStart === 'string' ? searchParams.weekStart : undefined;
+    const paydayParam =
+        typeof searchParams?.payday === 'string'
+            ? searchParams.payday
+            : typeof searchParams?.weekStart === 'string'
+                ? searchParams.weekStart
+                : undefined;
 
-    const { data: summary, error } = await getWeeklyPayrollSummary(weekStartParam);
+    const { data: summary, error } = await getWeeklyPayrollSummary(paydayParam);
 
     if (error === 'Unauthorized') {
         redirect('/login');
@@ -26,21 +32,10 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
         );
     }
 
-    const currentWeekStart = new Date(summary.weekStart + 'T12:00:00Z');
-
-    const prevWeek = new Date(currentWeekStart);
-    prevWeek.setDate(prevWeek.getDate() - 7);
-    const prevWeekStr = `${prevWeek.getFullYear()}-${String(prevWeek.getMonth() + 1).padStart(2, '0')}-${String(prevWeek.getDate()).padStart(2, '0')}`;
-
-    const nextWeek = new Date(currentWeekStart);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const nextWeekStr = `${nextWeek.getFullYear()}-${String(nextWeek.getMonth() + 1).padStart(2, '0')}-${String(nextWeek.getDate()).padStart(2, '0')}`;
-
-    const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-    const weekStartLabel = dateFormatter.format(currentWeekStart);
-
-    const weekEndDisplay = new Date(summary.weekEndInclusive + 'T12:00:00Z');
-    const weekEndLabel = dateFormatter.format(weekEndDisplay);
+    const prevPayday = getAdjacentPayday(summary.payday, -1);
+    const nextPayday = getAdjacentPayday(summary.payday, 1);
+    const payPeriodLabel = formatPayPeriodLabel(summary.payPeriodStart, summary.payPeriodEnd);
+    const paydayLabel = formatPaydayLabel(summary.payday);
 
     function formatCurrency(amount: number | null) {
         if (amount === null) return 'N/A';
@@ -55,20 +50,20 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
                 <h1 style={{ margin: 0 }}>Payroll Summary</h1>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <Link href={`/dashboard/payroll?weekStart=${prevWeekStr}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
-                        &larr; Prev Week
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <Link href={`/dashboard/payroll?payday=${prevPayday}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
+                        &larr; Prev Period
                     </Link>
-                    <span style={{ fontWeight: 500, background: '#f3f4f6', padding: '0.4rem 0.8rem', borderRadius: '4px' }}>
-                        {weekStartLabel} - {weekEndLabel}
-                    </span>
-                    <Link href={`/dashboard/payroll?weekStart=${nextWeekStr}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
-                        Next Week &rarr;
+                    <div style={{ fontWeight: 500, background: '#f3f4f6', padding: '0.5rem 0.8rem', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span>Pay period: {payPeriodLabel}</span>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>Payday: {paydayLabel}</span>
+                    </div>
+                    <Link href={`/dashboard/payroll?payday=${nextPayday}`} className="cta" style={{ padding: '0.4rem 0.8rem', background: '#e5e7eb', color: '#374151', textDecoration: 'none' }}>
+                        Next Period &rarr;
                     </Link>
                 </div>
             </div>
 
-            {/* Top Level Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
                 <div className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>Total Hours</div>
@@ -98,17 +93,23 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
 
             {summary.employeeSummaries.length === 0 ? (
                 <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: '1.1rem' }}>No time entries found for this week.</p>
+                    <p style={{ margin: 0, color: 'var(--muted)', fontSize: '1.1rem' }}>No time entries found for this pay period.</p>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {summary.employeeSummaries.map(emp => (
+                    {summary.employeeSummaries.map((emp) => (
                         <div key={emp.employee_id} className="card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
                                 <div>
                                     <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{emp.display_name}</h3>
                                     <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
-                                        {emp.hourly_rate !== null ? `$${emp.hourly_rate.toFixed(2)}/hr` : 'No rate set (set in DB to compute pay)'}
+                                        {emp.hourly_rate !== null
+                                            ? `$${emp.hourly_rate.toFixed(2)}/hr`
+                                            : (
+                                                <span style={{ color: '#b45309' }}>
+                                                    No pay rate set — add a rate in Crew Management to estimate pay
+                                                </span>
+                                            )}
                                     </div>
                                 </div>
 
@@ -146,15 +147,24 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {emp.entries.map(entry => {
+                                            {emp.entries.map((entry) => {
                                                 const clockInDate = new Date(entry.clock_in);
                                                 const clockOutDate = entry.clock_out ? new Date(entry.clock_out) : null;
-                                                const timeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+                                                const timeFormatter = new Intl.DateTimeFormat('en-US', {
+                                                    hour: 'numeric',
+                                                    minute: '2-digit',
+                                                    timeZone: 'America/Chicago'
+                                                });
+                                                const dateFormatter = new Intl.DateTimeFormat('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    timeZone: 'America/Chicago'
+                                                });
                                                 const isRowOpen = entry.clock_out === null;
 
                                                 return (
                                                     <tr key={entry.id} style={{ borderBottom: '1px solid #e5e7eb', background: isRowOpen ? '#fef2f2' : 'transparent' }}>
-                                                        <td style={{ padding: '0.6rem 0' }}>{clockInDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                                                        <td style={{ padding: '0.6rem 0' }}>{dateFormatter.format(clockInDate)}</td>
                                                         <td style={{ padding: '0.6rem 0' }}>{timeFormatter.format(clockInDate)}</td>
                                                         <td style={{ padding: '0.6rem 0' }}>{clockOutDate ? timeFormatter.format(clockOutDate) : '-'}</td>
                                                         <td style={{ padding: '0.6rem 0', fontWeight: isRowOpen ? 'normal' : 500 }}>

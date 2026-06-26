@@ -9,7 +9,9 @@ export type PayrollTimeEntry = {
 export type EmployeePayrollSummary = {
     employee_id: string;
     display_name: string;
+    /** Derived from employees.pay_rate_cents / 100 */
     hourly_rate: number | null;
+    pay_rate_cents: number | null;
     total_hours: number;
     entry_count: number;
     open_entry_count: number;
@@ -17,13 +19,19 @@ export type EmployeePayrollSummary = {
     entries: PayrollTimeEntry[];
 };
 
-export type WeeklyPayrollSummary = {
-    weekStart: string; // YYYY-MM-DD
-    weekEndExclusive: string; // YYYY-MM-DD
-    weekEndInclusive: string; // YYYY-MM-DD (Sunday)
+export type PayrollPeriodSummary = {
+    /** Friday (inclusive), America/Chicago calendar */
+    payPeriodStart: string;
+    /** Thursday (inclusive) */
+    payPeriodEnd: string;
+    /** Friday after payPeriodEnd */
+    payday: string;
     totalHours: number;
     employeesWithHours: number;
     openEntries: number;
     estimatedPayrollTotal: number;
     employeeSummaries: EmployeePayrollSummary[];
 };
+
+/** @deprecated Use PayrollPeriodSummary */
+export type WeeklyPayrollSummary = PayrollPeriodSummary;
