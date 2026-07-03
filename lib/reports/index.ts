@@ -1,7 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
-import { revalidatePath } from 'next/cache'
 import { checkTimeEntryConflict } from '@/lib/time/validateTimeEntry'
 import { resolveTimeEntryFailure, timeEntryFailure, timeEntrySuccess } from '@/lib/time/errors'
 
@@ -32,7 +31,10 @@ function getLocalWeekStart(utcIsoString: string) {
 
 export async function getMissingClockOuts(filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) throw new Error("Unauthorized to view time reports")
+    if (!isAuthorized) {
+        console.error('getMissingClockOuts: unauthorized')
+        return []
+    }
 
     const supabase = await createClient()
     let query = supabase
@@ -68,7 +70,10 @@ export async function getMissingClockOuts(filters?: { employeeId?: string, start
 
 export async function getRecentTimeEntries(limit: number = 100, filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) throw new Error("Unauthorized to view time reports")
+    if (!isAuthorized) {
+        console.error('getRecentTimeEntries: unauthorized')
+        return []
+    }
 
     const supabase = await createClient()
     let query = supabase
@@ -119,7 +124,10 @@ export async function getRecentTimeEntries(limit: number = 100, filters?: { empl
 
 export async function getWeeklyHoursReport(filters?: { employeeId?: string, startDate?: string, endDate?: string }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) throw new Error("Unauthorized to view time reports")
+    if (!isAuthorized) {
+        console.error('getWeeklyHoursReport: unauthorized')
+        return []
+    }
 
     const supabase = await createClient()
     let query = supabase
@@ -223,8 +231,6 @@ export async function correctTimeEntry(entryId: string, newClockIn: string, newC
             console.error("Error correcting time entry:", { entryId, code: error.code, message: error.message })
             return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to update time entry'))
         }
-        revalidatePath('/dashboard/reports')
-        revalidatePath('/dashboard/payroll')
         return timeEntrySuccess(undefined)
     } catch (err) {
         console.error('correctTimeEntry unexpected error:', { entryId, err })
@@ -273,8 +279,6 @@ export async function createManualTimeEntry(employeeId: string, clockIn: string,
             })
             return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to create time entry'))
         }
-        revalidatePath('/dashboard/reports')
-        revalidatePath('/dashboard/payroll')
         return timeEntrySuccess(undefined)
     } catch (err) {
         console.error('createManualTimeEntry unexpected error:', { employeeId, clockIn, clockOut, err })
@@ -283,21 +287,30 @@ export async function createManualTimeEntry(employeeId: string, clockIn: string,
 }
 
 export async function deleteTimeEntry(entryId: string, reason?: string) {
-    const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) throw new Error("Unauthorized to delete time entries")
+    try {
+        const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
+        if (!isAuthorized) {
+            return { error: { message: 'Unauthorized to delete time entries' } }
+        }
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) throw new Error("Unauthorized")
+        if (!user) {
+            return { error: { message: 'Unauthorized' } }
+        }
 
-    // Optionally you'd log the reason to an audit table here.
-    const { error } = await supabase
-        .from('time_entries')
-        .delete()
-        .eq('id', entryId)
+        const { error } = await supabase
+            .from('time_entries')
+            .delete()
+            .eq('id', entryId)
 
-    if (error) console.error("Error deleting time entry:", error)
-    revalidatePath('/dashboard/reports')
-    return { error }
+        if (error) {
+            console.error("Error deleting time entry:", { entryId, reason, code: error.code, message: error.message })
+        }
+        return { error }
+    } catch (err) {
+        console.error('deleteTimeEntry unexpected error:', { entryId, err })
+        return { error: { message: err instanceof Error ? err.message : 'Delete failed' } }
+    }
 }

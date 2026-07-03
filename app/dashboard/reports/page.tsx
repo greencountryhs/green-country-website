@@ -8,6 +8,7 @@ import { getRecentClockEvents } from '@/lib/time/getClockEvents'
 import { ClockEventHistory } from '@/components/dashboard/ClockEventHistory'
 import { EditTimeEntryForm, CreateManualEntryForm } from './ReportActions'
 import { PageHeader } from '@/components/dashboard/ops/PageHeader'
+import { ReportsSectionFallback, safeReportsSection } from './ReportsSectionFallback'
 
 export default async function ReportsDashboardPage({ searchParams }: { searchParams: { employeeId?: string, startDate?: string, endDate?: string } }) {
     const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
@@ -17,19 +18,23 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
 
     const { employeeId, startDate, endDate } = searchParams
 
-    // Fetch employees for filter dropdowns
     const supabase = await createClient()
     const { data: employees } = await supabase.from('employees').select('id, display_name').eq('active', true)
 
-    // Server-side loading
     const filters = { employeeId, startDate, endDate }
-    const weeklyHours = await getWeeklyHoursReport(filters)
-    const missingClockOuts = await getMissingClockOuts(filters)
-    const recentEntries = await getRecentTimeEntries(50, filters)
-    const clockEvents = await getRecentClockEvents({
+
+    const weeklyResult = await safeReportsSection('weekly hours', () => getWeeklyHoursReport(filters), [])
+    const missingResult = await safeReportsSection('missing clock-outs', () => getMissingClockOuts(filters), [])
+    const recentResult = await safeReportsSection('recent time entries', () => getRecentTimeEntries(50, filters), [])
+    const clockEventsResult = await safeReportsSection('clock events', () => getRecentClockEvents({
         employeeId: employeeId || undefined,
         limit: 50
-    })
+    }), [])
+
+    const weeklyHours = weeklyResult.data
+    const missingClockOuts = missingResult.data
+    const recentEntries = recentResult.data
+    const clockEvents = clockEventsResult.data
 
     function formatTimeDisplay(isoString: string) {
         return new Date(isoString).toLocaleString([], {
@@ -106,6 +111,10 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                 {/* RECENT ENTRIES — edit/delete per row */}
                 <div className="ops-card" id="recent-time-entries">
                     <h3 className="ops-section-title">Recent time entries</h3>
+                    {recentResult.error ? (
+                        <ReportsSectionFallback title="Recent time entries unavailable" message={recentResult.error} />
+                    ) : (
+                    <>
                     <p className="ops-section-lead" style={{ marginBottom: '1rem' }}>
                         Click <strong>Edit / Delete</strong> in the Corrections column to fix or remove a row.
                     </p>
@@ -191,6 +200,8 @@ export default async function ReportsDashboardPage({ searchParams }: { searchPar
                                 ))}
                             </tbody>
                         </table>
+                    )}
+                    </>
                     )}
                 </div>
 

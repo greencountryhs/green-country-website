@@ -1,23 +1,19 @@
 'use server'
 
 import { correctTimeEntry, createManualTimeEntry, deleteTimeEntry } from '@/lib/reports'
-import { revalidatePath } from 'next/cache'
+import type { ReportFormState } from './formState'
 
-export type ReportFormState = {
-    error: string | null
-    success: boolean
+const LOG = '[reports-manual-entry]'
+
+function logStage(stage: string, detail?: Record<string, unknown>) {
+    if (detail) {
+        console.error(LOG, stage, detail)
+    } else {
+        console.error(LOG, stage)
+    }
 }
 
-export const initialReportFormState: ReportFormState = { error: null, success: false }
-
-const errorBannerStyle = {
-    background: '#fef2f2',
-    color: '#991b1b',
-    borderColor: '#fecaca',
-    marginBottom: '0.75rem'
-} as const
-
-// Parse a datetime-local string (YYYY-MM-DDThh:mm) originating from the America/Chicago 
+// Parse a datetime-local string (YYYY-MM-DDThh:mm) originating from the America/Chicago
 // timezone into an exact UTC ISO string without relying on the Node.js server's timezone env.
 function parseLocalTime(localStr: string | null): { iso: string } | { error: string } {
     if (!localStr || !localStr.trim()) return { error: 'A date and time is required.' };
@@ -39,7 +35,6 @@ function parseLocalTime(localStr: string | null): { iso: string } | { error: str
         return { error: 'Invalid date/time values.' };
     }
 
-    // Guess the UTC time is local time + 6 hours (worst case offset, CST)
     const guessUtc = new Date(Date.UTC(y, m - 1, d, h + 6, min));
     if (Number.isNaN(guessUtc.getTime())) {
         return { error: 'Invalid date/time values.' };
@@ -66,18 +61,15 @@ function parseLocalTime(localStr: string | null): { iso: string } | { error: str
     const chicD = parseInt(dayPart.value, 10);
     let chicH = parseInt(hourPart.value, 10);
     const chicMin = parseInt(minutePart.value, 10);
-    
-    if (chicH === 24) chicH = 0; // Handle midnight
 
-    // Treat formatted output as absolute numbers for the difference check
+    if (chicH === 24) chicH = 0;
+
     const chicAbs = Date.UTC(chicY, chicM - 1, chicD, chicH, chicMin);
     const targetAbs = Date.UTC(y, m - 1, d, h, min);
-    
-    // Difference fixes DST or CST/CDT shifts
-    const diffMs = targetAbs - chicAbs;
-    const resultIso =  new Date(guessUtc.getTime() + diffMs).toISOString();
 
-    // Protection against ambiguous/non-existent times during Spring Forward jumps
+    const diffMs = targetAbs - chicAbs;
+    const resultIso = new Date(guessUtc.getTime() + diffMs).toISOString();
+
     const verifyParts = formatter.formatToParts(new Date(resultIso));
     const verifyHourPart = verifyParts.find(p => p.type === 'hour');
     const verifyMinutePart = verifyParts.find(p => p.type === 'minute');
@@ -126,7 +118,6 @@ export async function correctTimeEntryAction(
             return { error: message, success: false }
         }
 
-        revalidatePath('/dashboard/reports')
         return { error: null, success: true }
     } catch (err) {
         console.error('correctTimeEntryAction unexpected error:', err)
@@ -139,10 +130,19 @@ export async function createManualTimeEntryAction(
     formData: FormData
 ): Promise<ReportFormState> {
     try {
+        logStage('action-started')
+
         const employeeId = formData.get('employeeId') as string
         const clockIn = formData.get('clockIn') as string
         const clockOut = formData.get('clockOut') as string
         const reason = formData.get('reason') as string
+
+        logStage('form-parsed', {
+            hasEmployeeId: !!employeeId,
+            hasClockIn: !!clockIn,
+            hasClockOut: !!clockOut,
+            hasReason: !!reason
+        })
 
         if (!employeeId || !clockIn || !clockOut || !reason) {
             return { error: 'Missing required fields', success: false }
@@ -150,43 +150,60 @@ export async function createManualTimeEntryAction(
 
         const parsedIn = parseLocalTime(clockIn)
         if ('error' in parsedIn) {
+            logStage('clock-in-parse-failed', { error: parsedIn.error })
             return { error: parsedIn.error, success: false }
         }
 
         const parsedOut = parseLocalTime(clockOut)
         if ('error' in parsedOut) {
+            logStage('clock-out-parse-failed', { error: parsedOut.error })
             return { error: parsedOut.error, success: false }
         }
+
+        logStage('times-parsed', { clockIn: parsedIn.iso, clockOut: parsedOut.iso })
 
         if (new Date(parsedOut.iso).getTime() <= new Date(parsedIn.iso).getTime()) {
             return { error: 'Clock-out must be after clock-in.', success: false }
         }
 
+        logStage('createManualTimeEntry-calling', { employeeId })
         const result = await createManualTimeEntry(employeeId, parsedIn.iso, parsedOut.iso, reason)
+        logStage('createManualTimeEntry-returned', {
+            ok: result?.ok ?? null,
+            error: result && result.ok === false ? result.error : null
+        })
+
         if (!result || result.ok === false) {
             const message = result && result.ok === false ? result.error : 'Failed to create time entry.'
             return { error: message, success: false }
         }
 
-        revalidatePath('/dashboard/reports')
+        logStage('action-returning-success')
         return { error: null, success: true }
     } catch (err) {
-        console.error('createManualTimeEntryAction unexpected error:', {
-            err,
-            message: err instanceof Error ? err.message : String(err)
+        logStage('action-unexpected-error', {
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined
         })
-        return { error: 'An unexpected error occurred while creating the entry.', success: false }
+        return { error: 'An unexpected error occurred while creating the entry. (ref: MTE-UNEXPECTED)', success: false }
     }
 }
 
 export async function deleteTimeEntryAction(formData: FormData) {
-    const entryId = formData.get('entryId') as string
-    const reason = formData.get('reason') as string
+    try {
+        const entryId = formData.get('entryId') as string
+        const reason = formData.get('reason') as string
 
-    if (!entryId) throw new Error("Missing entryId")
+        if (!entryId) {
+            console.error('[reports-delete-entry] missing entryId')
+            return
+        }
 
-    await deleteTimeEntry(entryId, reason)
-    revalidatePath('/dashboard/reports')
+        const result = await deleteTimeEntry(entryId, reason)
+        if (result?.error) {
+            console.error('[reports-delete-entry] failed:', result.error)
+        }
+    } catch (err) {
+        console.error('[reports-delete-entry] unexpected error:', err)
+    }
 }
-
-export { errorBannerStyle }

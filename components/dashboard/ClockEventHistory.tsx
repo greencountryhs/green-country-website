@@ -61,7 +61,7 @@ export function ClockEventHistory({
                             )}
                             <td style={{ padding: '0.55rem 0.5rem' }}>
                                 <span className={`ops-status ${eventTone(event.event_type)}`}>
-                                    {TIME_CLOCK_EVENT_LABELS[event.event_type]}
+                                {TIME_CLOCK_EVENT_LABELS[event.event_type] ?? event.event_type}
                                 </span>
                             </td>
                             <td style={{ padding: '0.55rem 0.5rem', color: 'var(--ops-muted)' }}>

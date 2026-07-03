@@ -1,13 +1,14 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useFormState, useFormStatus } from 'react-dom'
 import {
     correctTimeEntryAction,
     createManualTimeEntryAction,
-    deleteTimeEntryAction,
-    errorBannerStyle,
-    initialReportFormState
+    deleteTimeEntryAction
 } from './actions'
+import { errorBannerStyle, initialReportFormState } from './formState'
 
 function FormError({ message }: { message: string | null }) {
     if (!message) return null
@@ -26,8 +27,18 @@ function SuccessBanner({ message }: { message: string }) {
     )
 }
 
+function useRefreshOnSuccess(success: boolean) {
+    const router = useRouter()
+    useEffect(() => {
+        if (success) {
+            router.refresh()
+        }
+    }, [success, router])
+}
+
 export function EditTimeEntryForm({ entry, defaultClockIn, defaultClockOut }: { entry: any, defaultClockIn: string, defaultClockOut: string }) {
     const [state, formAction] = useFormState(correctTimeEntryAction, initialReportFormState)
+    useRefreshOnSuccess(state.success)
 
     return (
         <details className="reports-edit-details">
@@ -85,6 +96,7 @@ function DeleteSubmitButton() {
 
 export function CreateManualEntryForm({ employees }: { employees: { id: string, name: string }[] }) {
     const [state, formAction] = useFormState(createManualTimeEntryAction, initialReportFormState)
+    useRefreshOnSuccess(state.success)
 
     return (
         <form action={formAction} className="reports-manual-form">
