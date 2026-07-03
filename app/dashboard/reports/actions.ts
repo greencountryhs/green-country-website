@@ -20,27 +20,52 @@ const errorBannerStyle = {
 // Parse a datetime-local string (YYYY-MM-DDThh:mm) originating from the America/Chicago 
 // timezone into an exact UTC ISO string without relying on the Node.js server's timezone env.
 function parseLocalTime(localStr: string | null): { iso: string } | { error: string } {
-    if (!localStr) return { error: 'A date and time is required.' };
-    
+    if (!localStr || !localStr.trim()) return { error: 'A date and time is required.' };
+
     const [datePart, timePart] = localStr.split('T');
-    const [y, m, d] = datePart.split('-').map(Number);
-    const [h, min] = timePart.split(':').map(Number);
+    if (!datePart || !timePart) {
+        return { error: 'Invalid date/time format. Use the date and time picker.' };
+    }
+
+    const dateBits = datePart.split('-').map(Number);
+    const timeBits = timePart.split(':').map(Number);
+    if (dateBits.length < 3 || timeBits.length < 2) {
+        return { error: 'Invalid date/time format.' };
+    }
+
+    const [y, m, d] = dateBits;
+    const [h, min] = timeBits;
+    if ([y, m, d, h, min].some((n) => Number.isNaN(n))) {
+        return { error: 'Invalid date/time values.' };
+    }
 
     // Guess the UTC time is local time + 6 hours (worst case offset, CST)
     const guessUtc = new Date(Date.UTC(y, m - 1, d, h + 6, min));
-    
+    if (Number.isNaN(guessUtc.getTime())) {
+        return { error: 'Invalid date/time values.' };
+    }
+
     const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Chicago',
         year: 'numeric', month: 'numeric', day: 'numeric',
         hour: 'numeric', minute: 'numeric', hour12: false
     });
-    
+
     const parts = formatter.formatToParts(guessUtc);
-    const chicY = parseInt(parts.find(p => p.type === 'year')!.value, 10);
-    const chicM = parseInt(parts.find(p => p.type === 'month')!.value, 10);
-    const chicD = parseInt(parts.find(p => p.type === 'day')!.value, 10);
-    let chicH = parseInt(parts.find(p => p.type === 'hour')!.value, 10);
-    const chicMin = parseInt(parts.find(p => p.type === 'minute')!.value, 10);
+    const yearPart = parts.find(p => p.type === 'year');
+    const monthPart = parts.find(p => p.type === 'month');
+    const dayPart = parts.find(p => p.type === 'day');
+    const hourPart = parts.find(p => p.type === 'hour');
+    const minutePart = parts.find(p => p.type === 'minute');
+    if (!yearPart || !monthPart || !dayPart || !hourPart || !minutePart) {
+        return { error: 'Unable to parse local time.' };
+    }
+
+    const chicY = parseInt(yearPart.value, 10);
+    const chicM = parseInt(monthPart.value, 10);
+    const chicD = parseInt(dayPart.value, 10);
+    let chicH = parseInt(hourPart.value, 10);
+    const chicMin = parseInt(minutePart.value, 10);
     
     if (chicH === 24) chicH = 0; // Handle midnight
 
@@ -54,9 +79,14 @@ function parseLocalTime(localStr: string | null): { iso: string } | { error: str
 
     // Protection against ambiguous/non-existent times during Spring Forward jumps
     const verifyParts = formatter.formatToParts(new Date(resultIso));
-    let verifyH = parseInt(verifyParts.find(p => p.type === 'hour')!.value, 10);
+    const verifyHourPart = verifyParts.find(p => p.type === 'hour');
+    const verifyMinutePart = verifyParts.find(p => p.type === 'minute');
+    if (!verifyHourPart || !verifyMinutePart) {
+        return { error: 'Unable to verify local time.' };
+    }
+    let verifyH = parseInt(verifyHourPart.value, 10);
     if (verifyH === 24) verifyH = 0;
-    const verifyMin = parseInt(verifyParts.find(p => p.type === 'minute')!.value, 10);
+    const verifyMin = parseInt(verifyMinutePart.value, 10);
 
     const targetH = h === 24 ? 0 : h;
     if (verifyH !== targetH || verifyMin !== min) {
@@ -91,8 +121,9 @@ export async function correctTimeEntryAction(
         }
 
         const result = await correctTimeEntry(entryId, parsedIn.iso, parsedOut.iso, reason)
-        if (result.ok === false) {
-            return { error: result.error, success: false }
+        if (!result || result.ok === false) {
+            const message = result && result.ok === false ? result.error : 'Failed to update time entry.'
+            return { error: message, success: false }
         }
 
         revalidatePath('/dashboard/reports')
@@ -127,15 +158,23 @@ export async function createManualTimeEntryAction(
             return { error: parsedOut.error, success: false }
         }
 
+        if (new Date(parsedOut.iso).getTime() <= new Date(parsedIn.iso).getTime()) {
+            return { error: 'Clock-out must be after clock-in.', success: false }
+        }
+
         const result = await createManualTimeEntry(employeeId, parsedIn.iso, parsedOut.iso, reason)
-        if (result.ok === false) {
-            return { error: result.error, success: false }
+        if (!result || result.ok === false) {
+            const message = result && result.ok === false ? result.error : 'Failed to create time entry.'
+            return { error: message, success: false }
         }
 
         revalidatePath('/dashboard/reports')
         return { error: null, success: true }
     } catch (err) {
-        console.error('createManualTimeEntryAction unexpected error:', err)
+        console.error('createManualTimeEntryAction unexpected error:', {
+            err,
+            message: err instanceof Error ? err.message : String(err)
+        })
         return { error: 'An unexpected error occurred while creating the entry.', success: false }
     }
 }

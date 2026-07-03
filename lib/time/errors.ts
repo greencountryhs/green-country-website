@@ -60,6 +60,18 @@ export function mapTimeEntryDbError(error: DbErrorLike): string | null {
         return TIME_ENTRY_OPEN_SHIFT_MESSAGE;
     }
 
+    if (error.code === '42501') {
+        return 'You do not have permission to modify time entries.';
+    }
+
+    if (error.code === '23503') {
+        return 'Unable to save time entry: invalid employee or user account.';
+    }
+
+    if (error.code === '23514' && constraint === 'time_entries_no_overlap') {
+        return TIME_ENTRY_OVERLAP_MESSAGE;
+    }
+
     return null;
 }
 

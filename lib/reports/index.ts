@@ -1,5 +1,3 @@
-'use server'
-
 import { createClient } from '@/utils/supabase/server'
 import { CAPABILITIES } from '@/lib/auth/capabilities'
 import { requireCapability } from '@/lib/auth/requireCapability'
@@ -181,91 +179,107 @@ export async function getWeeklyHoursReport(filters?: { employeeId?: string, star
 }
 
 export async function correctTimeEntry(entryId: string, newClockIn: string, newClockOut: string | null, reason: string) {
-    const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) return timeEntryFailure("Unauthorized to edit time entries")
+    try {
+        const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
+        if (!isAuthorized) return timeEntryFailure("Unauthorized to edit time entries")
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) return timeEntryFailure("Unauthorized")
+        if (!user) return timeEntryFailure("Unauthorized")
 
-    const { data: entryRow } = await supabase
-        .from('time_entries')
-        .select('employee_id')
-        .eq('id', entryId)
-        .single()
+        const { data: entryRow } = await supabase
+            .from('time_entries')
+            .select('employee_id')
+            .eq('id', entryId)
+            .single()
 
-    if (!entryRow?.employee_id) {
-        return timeEntryFailure('Time entry not found')
-    }
+        if (!entryRow?.employee_id) {
+            return timeEntryFailure('Time entry not found')
+        }
 
-    const conflict = await checkTimeEntryConflict(supabase, {
-        employeeId: entryRow.employee_id,
-        clockIn: newClockIn,
-        clockOut: newClockOut,
-        excludeEntryId: entryId
-    })
-    if (conflict.ok === false) {
-        return timeEntryFailure(conflict.error)
-    }
-
-    const { error } = await supabase
-        .from('time_entries')
-        .update({
-            clock_in: newClockIn,
-            clock_out: newClockOut,
-            edited_at: new Date().toISOString(),
-            edited_by: user.id,
-            edit_reason: reason
+        const conflict = await checkTimeEntryConflict(supabase, {
+            employeeId: entryRow.employee_id,
+            clockIn: newClockIn,
+            clockOut: newClockOut,
+            excludeEntryId: entryId
         })
-        .eq('id', entryId)
+        if (conflict.ok === false) {
+            return timeEntryFailure(conflict.error)
+        }
 
-    if (error) {
-        console.error("Error correcting time entry:", error)
-        return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to update time entry'))
+        const { error } = await supabase
+            .from('time_entries')
+            .update({
+                clock_in: newClockIn,
+                clock_out: newClockOut,
+                edited_at: new Date().toISOString(),
+                edited_by: user.id,
+                edit_reason: reason
+            })
+            .eq('id', entryId)
+
+        if (error) {
+            console.error("Error correcting time entry:", { entryId, code: error.code, message: error.message })
+            return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to update time entry'))
+        }
+        revalidatePath('/dashboard/reports')
+        revalidatePath('/dashboard/payroll')
+        return timeEntrySuccess(undefined)
+    } catch (err) {
+        console.error('correctTimeEntry unexpected error:', { entryId, err })
+        return timeEntryFailure('An unexpected error occurred while updating the time entry.')
     }
-    revalidatePath('/dashboard/reports')
-    revalidatePath('/dashboard/payroll')
-    return timeEntrySuccess(undefined)
 }
 
 export async function createManualTimeEntry(employeeId: string, clockIn: string, clockOut: string, reason: string) {
-    const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
-    if (!isAuthorized) return timeEntryFailure("Unauthorized to create time entries")
+    try {
+        const isAuthorized = await requireCapability(CAPABILITIES.VIEW_TIME_REPORTS)
+        if (!isAuthorized) return timeEntryFailure("Unauthorized to create time entries")
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) return timeEntryFailure("Unauthorized")
+        if (!user) return timeEntryFailure("Unauthorized")
 
-    const conflict = await checkTimeEntryConflict(supabase, {
-        employeeId,
-        clockIn,
-        clockOut
-    })
-    if (conflict.ok === false) {
-        return timeEntryFailure(conflict.error)
+        const conflict = await checkTimeEntryConflict(supabase, {
+            employeeId,
+            clockIn,
+            clockOut
+        })
+        if (conflict.ok === false) {
+            return timeEntryFailure(conflict.error)
+        }
+
+        const { error } = await supabase
+            .from('time_entries')
+            .insert([{
+                employee_id: employeeId,
+                clock_in: clockIn,
+                clock_out: clockOut,
+                manual_entry: true,
+                edited_at: new Date().toISOString(),
+                edited_by: user.id,
+                edit_reason: reason
+            }])
+
+        if (error) {
+            console.error("Error creating manual time entry:", {
+                employeeId,
+                clockIn,
+                clockOut,
+                code: error.code,
+                message: error.message
+            })
+            return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to create time entry'))
+        }
+        revalidatePath('/dashboard/reports')
+        revalidatePath('/dashboard/payroll')
+        return timeEntrySuccess(undefined)
+    } catch (err) {
+        console.error('createManualTimeEntry unexpected error:', { employeeId, clockIn, clockOut, err })
+        return timeEntryFailure('An unexpected error occurred while creating the time entry.')
     }
-
-    const { error } = await supabase
-        .from('time_entries')
-        .insert([{
-            employee_id: employeeId,
-            clock_in: clockIn,
-            clock_out: clockOut,
-            manual_entry: true,
-            edited_at: new Date().toISOString(),
-            edited_by: user.id,
-            edit_reason: reason
-        }])
-
-    if (error) {
-        console.error("Error creating manual time entry:", error)
-        return timeEntryFailure(resolveTimeEntryFailure(error, 'Failed to create time entry'))
-    }
-    revalidatePath('/dashboard/reports')
-    revalidatePath('/dashboard/payroll')
-    return timeEntrySuccess(undefined)
 }
 
 export async function deleteTimeEntry(entryId: string, reason?: string) {
