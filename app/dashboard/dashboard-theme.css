@@ -494,3 +494,57 @@
 @media (min-width: 769px) {
   .ops-mobile-backdrop { display: none !important; }
 }
+
+/* Reports — admin time corrections */
+.reports-manual-form {
+  margin-top: 0.5rem;
+}
+
+.reports-manual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.reports-field-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--ops-ink-soft);
+}
+
+.reports-field-input {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--ops-radius-sm);
+  border: 1px solid var(--ops-border-strong);
+  font-size: 0.95rem;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.reports-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: var(--ops-radius-sm);
+  border: 1px solid var(--ops-border);
+}
+
+.reports-edit-details {
+  display: inline-block;
+}
+
+.reports-edit-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.75rem;
+  min-height: 36px;
+}
+
+.reports-edit-summary::-webkit-details-marker {
+  display: none;
+}
