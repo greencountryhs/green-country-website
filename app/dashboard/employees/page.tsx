@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import Link from 'next/link';
 import { inviteCrewMemberLogin, sendManagerNote, createAdminEmployeeRecord } from './actions';
+import { seedEmployeeCompensationDefaults } from './compensationActions';
 
 type Employee = {
     id: string;
@@ -113,6 +114,12 @@ export default function EmployeesPage() {
             setNewName('');
             setNewPayRate('');
             setNewEmail('');
+
+            try {
+                await seedEmployeeCompensationDefaults(newEmp.id, payRateCents);
+            } catch (seedErr) {
+                console.error('[page.tsx] Failed to seed compensation defaults:', seedErr);
+            }
 
             if (newEmail) {
                 try {

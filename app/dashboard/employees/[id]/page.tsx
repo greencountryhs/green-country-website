@@ -5,6 +5,11 @@ import { revalidatePath } from 'next/cache'
 import { createAdminEmployeeRecord } from '../actions'
 import { SubmitButton } from '@/components/submit-button'
 import { EmployeeManagerNotesList } from '@/components/notes/EmployeeManagerNotesList'
+import { EmployeeCompensationPanel } from '@/components/dashboard/EmployeeCompensationPanel'
+import {
+    getChicagoDateString
+} from '@/lib/payroll/payPeriod'
+import { resolvePaySchedule } from '@/lib/payroll/compensation'
 
 export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
     const supabase = await createClient()
@@ -26,6 +31,34 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     if (error || !employee) {
         return <div className="page center"><h1>Employee Not Found</h1></div>
     }
+
+    const today = getChicagoDateString()
+
+    const { data: rateHistory } = await supabase
+        .from('employee_pay_rates')
+        .select('id, pay_rate_cents, effective_from, note, created_at')
+        .eq('employee_id', employee.id)
+        .order('effective_from', { ascending: false })
+
+    const { data: scheduleHistory } = await supabase
+        .from('employee_pay_schedules')
+        .select('id, period_start_weekday, payday_lag_weeks, effective_from, note, created_at')
+        .eq('employee_id', employee.id)
+        .order('effective_from', { ascending: false })
+
+    const currentSchedule = resolvePaySchedule(
+        ((scheduleHistory || []) as Array<{
+            effective_from: string
+            period_start_weekday: number
+            payday_lag_weeks?: number | null
+        }>).map((row) => ({
+            employee_id: employee.id,
+            effective_from: row.effective_from,
+            period_start_weekday: row.period_start_weekday,
+            payday_lag_weeks: row.payday_lag_weeks
+        })),
+        today
+    )
 
     // Fetch Time Entries
     const { data: timeEntries } = await supabase
@@ -212,7 +245,6 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                     <h1>{employee.display_name}</h1>
                     <div className="card" style={{ marginBottom: '2rem' }}>
                         <h3>Profile Detail</h3>
-                        <p style={{ margin: '0.5rem 0', color: 'var(--muted)' }}>Pay Rate: ${(employee.pay_rate_cents / 100).toFixed(2)}/hr</p>
                         <p style={{ margin: '0.5rem 0', color: 'var(--muted)' }}>Email: {employee.email || 'N/A'}</p>
                         <p style={{ margin: '0.5rem 0', color: 'var(--muted)' }}>Status: {employee.active ? 'Active' : 'Inactive'}</p>
                         <div style={{ marginTop: '1rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '4px', border: '1px solid var(--border)' }}>
@@ -220,6 +252,18 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                             {employee.user_id ? <span style={{ color: '#166534' }}>Linked ({employee.user_id})</span> : <span style={{ color: '#991b1b' }}>Unlinked / Pending Invite</span>}
                         </div>
                     </div>
+
+                    <EmployeeCompensationPanel
+                        employeeId={employee.id}
+                        currentRateCents={employee.pay_rate_cents ?? 0}
+                        currentPeriodStartWeekday={currentSchedule.periodStartWeekday}
+                        currentPaydayLagWeeks={currentSchedule.paydayLagWeeks}
+                        rateHistory={rateHistory || []}
+                        scheduleHistory={(scheduleHistory || []).map((row) => ({
+                            ...row,
+                            payday_lag_weeks: row.payday_lag_weeks ?? 0
+                        }))}
+                    />
 
                     <div className="card" style={{ marginBottom: '2rem' }}>
                         <h3>Recent Task Completion</h3>

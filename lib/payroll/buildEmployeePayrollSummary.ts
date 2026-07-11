@@ -24,7 +24,8 @@ export function buildEmployeePayrollSummary(
         pay_rate_cents: number | null;
     },
     timeEntries: TimeEntryRow[],
-    transactions: PayrollTransactionRecord[]
+    transactions: PayrollTransactionRecord[],
+    period: { periodStart: string; periodEnd: string }
 ): EmployeePayrollSummary {
     const payRateCents = employee.pay_rate_cents ?? null;
     const hourlyRate = hourlyRateFromCents(payRateCents);
@@ -80,6 +81,8 @@ export function buildEmployeePayrollSummary(
         display_name: employee.display_name,
         hourly_rate: hourlyRate,
         pay_rate_cents: payRateCents,
+        pay_period_start: period.periodStart,
+        pay_period_end: period.periodEnd,
         total_hours: totalHours,
         entry_count: entryCount,
         open_entry_count: openEntryCount,

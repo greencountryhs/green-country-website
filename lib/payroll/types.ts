@@ -24,6 +24,9 @@ export type EmployeePayrollSummary = {
     display_name: string;
     hourly_rate: number | null;
     pay_rate_cents: number | null;
+    /** Employee-specific work window for this payday (may differ during schedule taper). */
+    pay_period_start: string;
+    pay_period_end: string;
     total_hours: number;
     entry_count: number;
     open_entry_count: number;

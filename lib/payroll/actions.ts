@@ -4,6 +4,10 @@ import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { getPayPeriodForWorkDate } from './payPeriod';
 import {
+    resolvePaySchedule,
+    type EmployeePayScheduleRow
+} from './compensation';
+import {
     isPayrollEntryType,
     parseAmountToCents,
     type PayrollEntryType
@@ -29,8 +33,26 @@ async function assertAdminPayrollWriter() {
     return supabase;
 }
 
-function resolvePayPeriodForTransactionDate(transactionDate: string) {
-    const period = getPayPeriodForWorkDate(transactionDate);
+async function resolvePayPeriodForEmployeeTransaction(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    employeeId: string,
+    transactionDate: string
+) {
+    const { data: scheduleRows } = await supabase
+        .from('employee_pay_schedules')
+        .select('employee_id, period_start_weekday, payday_lag_weeks, effective_from')
+        .eq('employee_id', employeeId)
+        .order('effective_from', { ascending: false });
+
+    const schedule = resolvePaySchedule(
+        (scheduleRows || []) as EmployeePayScheduleRow[],
+        transactionDate
+    );
+    const period = getPayPeriodForWorkDate(
+        transactionDate,
+        schedule.periodStartWeekday,
+        schedule.paydayLagWeeks
+    );
     return {
         pay_period_start: period.periodStart,
         pay_period_end: period.periodEnd,
@@ -56,7 +78,11 @@ export async function createPayrollTransaction(input: {
     }
 
     const amountCents = parseAmountToCents(input.amount);
-    const period = resolvePayPeriodForTransactionDate(input.transactionDate);
+    const period = await resolvePayPeriodForEmployeeTransaction(
+        supabase,
+        input.employeeId,
+        input.transactionDate
+    );
 
     if (input.paydayOverride && input.paydayOverride !== period.payday) {
         throw new Error('Transaction date does not belong to the selected pay period');
@@ -105,7 +131,11 @@ export async function updatePayrollTransaction(input: {
     }
 
     const amountCents = parseAmountToCents(input.amount);
-    const period = resolvePayPeriodForTransactionDate(input.transactionDate);
+    const period = await resolvePayPeriodForEmployeeTransaction(
+        supabase,
+        input.employeeId,
+        input.transactionDate
+    );
 
     if (input.paydayOverride && input.paydayOverride !== period.payday) {
         throw new Error('Transaction date does not belong to the selected pay period');
