@@ -22,8 +22,8 @@ export default function Footer() {
                     <h4 className="text-lg font-semibold mb-4 text-[var(--accent)]">Contact</h4>
                     <p className="text-sm text-gray-300">
                         Tulsa, OK & Surrounding Areas<br />
-                        <a href="sms:+19188846615" className="hover:text-white mt-2 inline-block">
-                            (918) 884-6615
+                        <a href="sms:+19188090930" className="hover:text-white mt-2 inline-block">
+                            (918) 809-0930
                         </a>
                     </p>
                 </div>

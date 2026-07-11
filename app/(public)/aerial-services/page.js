@@ -9,7 +9,7 @@ export default function AerialServices() {
       </p>
 
       <div className="cta-row" style={{ justifyContent: "flex-start" }}>
-        <a className="cta" href="sms:+19188846615">
+        <a className="cta" href="sms:+19188090930">
           Text the drone pilot for more info
         </a>
         <a className="cta secondary" href="/contact">

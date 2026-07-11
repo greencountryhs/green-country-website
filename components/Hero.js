@@ -31,7 +31,7 @@ export default function Hero() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4">
-                        <a href="sms:+19188846615" className="btn bg-[var(--accent)] text-[var(--primary-dark)] hover:bg-white">
+                        <a href="sms:+19188090930" className="btn bg-[var(--accent)] text-[var(--primary-dark)] hover:bg-white">
                             Get a Fast Quote
                         </a>
                         <a href="/home-services" className="btn border border-white/30 hover:bg-white/10 text-white">

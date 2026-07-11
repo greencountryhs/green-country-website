@@ -37,8 +37,8 @@ export default function PublicLayout({ children }) {
 
             <div className="footer-right small">
               Owner-operated by Jon • Text preferred:{" "}
-              <a className="link" href="sms:+19188846615">
-                (918) 884-6615
+              <a className="link" href="sms:+19188090930">
+                (918) 809-0930
               </a>
               <div className="small" style={{ marginTop: ".35rem", display: "flex", gap: "1rem" }}>
                 <span>© {new Date().getFullYear()}</span>

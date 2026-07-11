@@ -11,7 +11,7 @@ export default function Home() {
         </p>
 
         <div className="cta-row">
-          <a className="cta" href="sms:+19188846615">
+          <a className="cta" href="sms:+19188090930">
             Text Jon directly for a fast response
           </a>
           <a className="cta secondary" href="/contact">
@@ -68,8 +68,8 @@ export default function Home() {
         <p style={{ margin: 0 }}>
           <strong>Fastest way to start:</strong> text a couple photos and a short
           description to{" "}
-          <a className="link" href="sms:+19188846615">
-            (918) 884-6615
+          <a className="link" href="sms:+19188090930">
+            (918) 809-0930
           </a>
             , to talk to Jon directly.
         </p>

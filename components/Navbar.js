@@ -47,7 +47,7 @@ export default function Navbar() {
                             </Link>
                         ))}
                         <a
-                            href="sms:+19188846615"
+                            href="sms:+19188090930"
                             className="btn btn-primary"
                         >
                             <Phone size={16} />

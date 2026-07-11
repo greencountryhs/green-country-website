@@ -15,8 +15,8 @@ export default function ContactForm() {
                     <p style={{ margin: 0 }}>
                         <strong>Message sent.</strong> Thanks — I’ve received your note.
                         If timing matters, texting photos/details to{" "}
-                        <a className="link" href="sms:+19188846615">
-                            (918) 884-6615
+                        <a className="link" href="sms:+19188090930">
+                            (918) 809-0930
                         </a>{" "}
                         usually gets the fastest response.
                     </p>
@@ -29,7 +29,7 @@ export default function ContactForm() {
             </p>
 
             <div className="cta-row" style={{ justifyContent: "flex-start" }}>
-                <a className="cta" href="sms:+19188846615">
+                <a className="cta" href="sms:+19188090930">
                     Text Jon for a fast response
                 </a>
             </div>
@@ -109,8 +109,8 @@ export default function ContactForm() {
                 <p className="small" style={{ marginTop: "0.75rem" }}>
                     If you don’t want to use email, texting is usually faster:
                     {" "}
-                    <a className="link" href="sms:+19188846615">
-                        (918) 884-6615
+                    <a className="link" href="sms:+19188090930">
+                        (918) 809-0930
                     </a>
                     .
                 </p>

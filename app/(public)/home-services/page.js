@@ -10,7 +10,7 @@ export default function HomeServices() {
       </p>
 
       <div className="cta-row" style={{ justifyContent: "flex-start" }}>
-        <a className="cta" href="sms:+19188846615">
+        <a className="cta" href="sms:+19188090930">
           Text Jon directly to get started
         </a>
         <a className="cta secondary" href="/contact">
