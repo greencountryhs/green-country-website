@@ -2,13 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
-import {
-    NEW_HIRE_PAYDAY_LAG_WEEKS,
-    NEW_HIRE_PERIOD_START_WEEKDAY,
-    getChicagoDateString,
-    isValidPaydayLagWeeks,
-    isValidPeriodStartWeekday
-} from '@/lib/payroll/payPeriod'
+import { getChicagoDateString } from '@/lib/payroll/payPeriod'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -72,7 +66,6 @@ export async function setEmployeePayRate(formData: FormData) {
         return { error: rateError.message || 'Failed to save pay rate' }
     }
 
-    // Keep denormalized current rate in sync from the rate in effect today.
     const today = getChicagoDateString()
     const { data: latest } = await auth.supabase
         .from('employee_pay_rates')
@@ -105,52 +98,7 @@ export async function setEmployeePayRate(formData: FormData) {
     return { success: true }
 }
 
-export async function setEmployeePaySchedule(formData: FormData) {
-    const auth = await assertAdmin()
-    if (auth.error || !auth.supabase || !auth.user) {
-        return { error: auth.error || 'Unauthorized' }
-    }
-
-    const employeeId = String(formData.get('employeeId') || '').trim()
-    const weekdayRaw = Number(formData.get('periodStartWeekday'))
-    const lagRaw = Number(formData.get('paydayLagWeeks'))
-    const effectiveFrom = String(formData.get('effectiveFrom') || '').trim() || getChicagoDateString()
-    const note = String(formData.get('note') || '').trim() || null
-
-    if (!employeeId) return { error: 'Employee is required' }
-    if (!isValidPeriodStartWeekday(weekdayRaw)) {
-        return { error: 'Choose a valid period start day' }
-    }
-    if (!isValidPaydayLagWeeks(lagRaw)) {
-        return { error: 'Choose when Friday payday falls relative to the period' }
-    }
-    if (!DATE_RE.test(effectiveFrom)) return { error: 'Effective date must be YYYY-MM-DD' }
-
-    const { error } = await auth.supabase
-        .from('employee_pay_schedules')
-        .upsert(
-            {
-                employee_id: employeeId,
-                period_start_weekday: weekdayRaw,
-                payday_lag_weeks: lagRaw,
-                effective_from: effectiveFrom,
-                note,
-                changed_by_user_id: auth.user.id
-            },
-            { onConflict: 'employee_id,effective_from' }
-        )
-
-    if (error) {
-        return { error: error.message || 'Failed to save pay schedule' }
-    }
-
-    revalidatePath(`/dashboard/employees/${employeeId}`)
-    revalidatePath('/dashboard/payroll')
-    revalidatePath('/dashboard/my-pay')
-    return { success: true }
-}
-
-/** Seed new-hire schedule (Thu–Wed, pay following week) + initial rate after creating an employee. */
+/** Seed initial rate history after creating an employee. */
 export async function seedEmployeeCompensationDefaults(
     employeeId: string,
     payRateCents: number
@@ -180,24 +128,6 @@ export async function seedEmployeeCompensationDefaults(
 
     if (rateError) {
         return { error: rateError.message || 'Failed to seed pay rate' }
-    }
-
-    const { error: scheduleError } = await auth.supabase
-        .from('employee_pay_schedules')
-        .upsert(
-            {
-                employee_id: employeeId,
-                period_start_weekday: NEW_HIRE_PERIOD_START_WEEKDAY,
-                payday_lag_weeks: NEW_HIRE_PAYDAY_LAG_WEEKS,
-                effective_from: effectiveFrom,
-                note: 'Initial schedule Thu–Wed · paid Friday the following week',
-                changed_by_user_id: auth.user.id
-            },
-            { onConflict: 'employee_id,effective_from' }
-        )
-
-    if (scheduleError) {
-        return { error: scheduleError.message || 'Failed to seed pay schedule' }
     }
 
     return { success: true }

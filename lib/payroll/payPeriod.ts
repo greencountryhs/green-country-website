@@ -1,46 +1,30 @@
-/** Green Country payroll calendar helpers (America/Chicago).
- * Payday is always Friday.
- * Work window: 7 days from period_start_weekday (end = start + 6).
- * payday_lag_weeks controls which Friday is payday:
- *   0 → first Friday after period end (legacy Fri–Thu ending 9th → pay 10th)
- *   1 → skip that Friday, pay the next (e.g. Thu–Wed ending 8th → pay 17th)
+/** Green Country payroll calendar (America/Chicago).
+ * Company-wide: Thursday–Wednesday work periods.
+ * Payday is the Friday of the week after the period ends
+ * (e.g. period ending Wed the 8th → paid Fri the 17th).
  */
 
 export const PAYROLL_TIME_ZONE = 'America/Chicago';
 
-/** Friday — company payday weekday (fixed). */
+/** Friday */
 export const PAYDAY_WEEKDAY = 5;
 
-/** Legacy default: Friday–Thursday, paid the Friday after period end. */
-export const DEFAULT_PERIOD_START_WEEKDAY = 5;
-export const DEFAULT_PAYDAY_LAG_WEEKS = 0;
+/** Thursday — period start */
+const PERIOD_START_WEEKDAY = 4;
+
+/** Wednesday — period end (= start + 6) */
+const PERIOD_END_WEEKDAY = 3;
 
 /**
- * New-hire / target schedule: Thursday–Wednesday,
- * paid the Friday of the following week (end 8th → pay 17th).
+ * Weeks after the first Friday following period end.
+ * 1 → end Wed 8th, first Friday is 10th, payday is 17th.
  */
-export const NEW_HIRE_PERIOD_START_WEEKDAY = 4;
-export const NEW_HIRE_PAYDAY_LAG_WEEKS = 1;
-
-export const WEEKDAY_LABELS = [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday'
-] as const;
-
-export type PayScheduleConfig = {
-    periodStartWeekday: number;
-    paydayLagWeeks: number;
-};
+const PAYDAY_LAG_WEEKS = 1;
 
 export type PayPeriod = {
-    /** Inclusive period start */
+    /** Inclusive Thursday */
     periodStart: string;
-    /** Inclusive period end (start + 6 days) */
+    /** Inclusive Wednesday */
     periodEnd: string;
     /** Friday payday */
     payday: string;
@@ -73,20 +57,8 @@ export function getCalendarDayOfWeek(dateStr: string): number {
     return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
-export function isValidPeriodStartWeekday(value: number): boolean {
-    return Number.isInteger(value) && value >= 0 && value <= 6;
-}
-
-export function isValidPaydayLagWeeks(value: number): boolean {
-    return Number.isInteger(value) && value >= 0 && value <= 4;
-}
-
-export function periodEndWeekdayFromStart(periodStartWeekday: number): number {
-    return (periodStartWeekday + 6) % 7;
-}
-
-/** First Friday strictly after dateStr (if dateStr is Friday, returns the next Friday). */
-export function firstFridayAfter(dateStr: string): string {
+/** First Friday strictly after dateStr. */
+function firstFridayAfter(dateStr: string): string {
     const dow = getCalendarDayOfWeek(dateStr);
     let daysUntilFri = (PAYDAY_WEEKDAY - dow + 7) % 7;
     if (daysUntilFri === 0) {
@@ -95,42 +67,26 @@ export function firstFridayAfter(dateStr: string): string {
     return addCalendarDays(dateStr, daysUntilFri);
 }
 
-export function paydayFromPeriodEnd(periodEnd: string, paydayLagWeeks: number = DEFAULT_PAYDAY_LAG_WEEKS): string {
-    if (!isValidPaydayLagWeeks(paydayLagWeeks)) {
-        throw new Error(`Invalid payday lag weeks: ${paydayLagWeeks}`);
-    }
-    return addCalendarDays(firstFridayAfter(periodEnd), paydayLagWeeks * 7);
+function paydayFromPeriodEnd(periodEnd: string): string {
+    return addCalendarDays(firstFridayAfter(periodEnd), PAYDAY_LAG_WEEKS * 7);
 }
 
-/**
- * Resolve the 7-day work window paid on this Friday for the given schedule.
- * Anchor: firstFridayAfter(periodEnd) === payday − lag weeks.
- */
-export function getPayPeriodForPayday(
-    paydayFriday: string,
-    periodStartWeekday: number = DEFAULT_PERIOD_START_WEEKDAY,
-    paydayLagWeeks: number = DEFAULT_PAYDAY_LAG_WEEKS
-): PayPeriod {
+/** Payday must be Friday; pays for the Thu–Wed window tied to that Friday. */
+export function getPayPeriodForPayday(paydayFriday: string): PayPeriod {
     if (!DATE_RE.test(paydayFriday)) {
         throw new Error(`Invalid payday: ${paydayFriday}`);
-    }
-    if (!isValidPeriodStartWeekday(periodStartWeekday)) {
-        throw new Error(`Invalid period start weekday: ${periodStartWeekday}`);
-    }
-    if (!isValidPaydayLagWeeks(paydayLagWeeks)) {
-        throw new Error(`Invalid payday lag weeks: ${paydayLagWeeks}`);
     }
     if (getCalendarDayOfWeek(paydayFriday) !== PAYDAY_WEEKDAY) {
         throw new Error(`Payday must be a Friday: ${paydayFriday}`);
     }
 
-    const anchorFriday = addCalendarDays(paydayFriday, -paydayLagWeeks * 7);
-    const endWeekday = periodEndWeekdayFromStart(periodStartWeekday);
+    // Anchor: first Friday after periodEnd = payday − lag weeks
+    const anchorFriday = addCalendarDays(paydayFriday, -PAYDAY_LAG_WEEKS * 7);
     let periodEnd: string | null = null;
 
     for (let daysBefore = 1; daysBefore <= 7; daysBefore++) {
         const candidate = addCalendarDays(anchorFriday, -daysBefore);
-        if (getCalendarDayOfWeek(candidate) === endWeekday) {
+        if (getCalendarDayOfWeek(candidate) === PERIOD_END_WEEKDAY) {
             periodEnd = candidate;
             break;
         }
@@ -144,44 +100,40 @@ export function getPayPeriodForPayday(
     return { periodStart, periodEnd, payday: paydayFriday };
 }
 
-/** Resolve which Friday-paid period contains a work date. */
-export function getPayPeriodForWorkDate(
-    workDate: string,
-    periodStartWeekday: number = DEFAULT_PERIOD_START_WEEKDAY,
-    paydayLagWeeks: number = DEFAULT_PAYDAY_LAG_WEEKS
-): PayPeriod {
+/** Resolve which Friday-paid Thu–Wed period contains a work date. */
+export function getPayPeriodForWorkDate(workDate: string): PayPeriod {
     if (!DATE_RE.test(workDate)) {
         throw new Error(`Invalid work date: ${workDate}`);
     }
-    if (!isValidPeriodStartWeekday(periodStartWeekday)) {
-        throw new Error(`Invalid period start weekday: ${periodStartWeekday}`);
-    }
-    if (!isValidPaydayLagWeeks(paydayLagWeeks)) {
-        throw new Error(`Invalid payday lag weeks: ${paydayLagWeeks}`);
-    }
 
     const dow = getCalendarDayOfWeek(workDate);
-    const daysBack = (dow - periodStartWeekday + 7) % 7;
+    const daysBack = (dow - PERIOD_START_WEEKDAY + 7) % 7;
     const periodStart = addCalendarDays(workDate, -daysBack);
     const periodEnd = addCalendarDays(periodStart, 6);
-    const payday = paydayFromPeriodEnd(periodEnd, paydayLagWeeks);
+    const payday = paydayFromPeriodEnd(periodEnd);
 
     return { periodStart, periodEnd, payday };
 }
 
-/** On payday morning, show the period being paid out today (company default schedule). */
+/**
+ * Default payday for payroll views.
+ * On Friday → that Friday. Otherwise the next upcoming payday,
+ * preferring a payday still pending for a period that already ended.
+ */
 export function getDefaultPaydayForPayrollView(todayChicago = getChicagoDateString()): string {
     if (getCalendarDayOfWeek(todayChicago) === PAYDAY_WEEKDAY) {
         return todayChicago;
     }
-    return getPayPeriodForWorkDate(
-        todayChicago,
-        DEFAULT_PERIOD_START_WEEKDAY,
-        DEFAULT_PAYDAY_LAG_WEEKS
-    ).payday;
+
+    const current = getPayPeriodForWorkDate(todayChicago);
+    const previous = getPayPeriodForPayday(addCalendarDays(current.payday, -7));
+    if (previous.payday >= todayChicago) {
+        return previous.payday;
+    }
+    return current.payday;
 }
 
-/** Snap URL/date params to a Friday payday (company default schedule). */
+/** Snap URL/date params to a Friday payday. */
 export function resolvePaydayParam(paydayParam?: string): string {
     if (!paydayParam || !DATE_RE.test(paydayParam)) {
         return getDefaultPaydayForPayrollView();
@@ -189,52 +141,7 @@ export function resolvePaydayParam(paydayParam?: string): string {
     if (getCalendarDayOfWeek(paydayParam) === PAYDAY_WEEKDAY) {
         return paydayParam;
     }
-    return getPayPeriodForWorkDate(
-        paydayParam,
-        DEFAULT_PERIOD_START_WEEKDAY,
-        DEFAULT_PAYDAY_LAG_WEEKS
-    ).payday;
-}
-
-/**
- * Default payday for a specific schedule.
- * On Friday → that Friday. Otherwise upcoming payday, preferring a payday
- * still pending for work already completed (gap between period end and pay).
- */
-export function getDefaultPaydayForSchedule(
-    todayChicago: string,
-    periodStartWeekday: number = DEFAULT_PERIOD_START_WEEKDAY,
-    paydayLagWeeks: number = DEFAULT_PAYDAY_LAG_WEEKS
-): string {
-    if (getCalendarDayOfWeek(todayChicago) === PAYDAY_WEEKDAY) {
-        return todayChicago;
-    }
-
-    const current = getPayPeriodForWorkDate(todayChicago, periodStartWeekday, paydayLagWeeks);
-    const previous = getPayPeriodForPayday(
-        addCalendarDays(current.payday, -7),
-        periodStartWeekday,
-        paydayLagWeeks
-    );
-    if (previous.payday >= todayChicago) {
-        return previous.payday;
-    }
-    return current.payday;
-}
-
-export function resolvePaydayParamForSchedule(
-    paydayParam: string | undefined,
-    periodStartWeekday: number,
-    paydayLagWeeks: number,
-    todayChicago = getChicagoDateString()
-): string {
-    if (!paydayParam || !DATE_RE.test(paydayParam)) {
-        return getDefaultPaydayForSchedule(todayChicago, periodStartWeekday, paydayLagWeeks);
-    }
-    if (getCalendarDayOfWeek(paydayParam) === PAYDAY_WEEKDAY) {
-        return paydayParam;
-    }
-    return getPayPeriodForWorkDate(paydayParam, periodStartWeekday, paydayLagWeeks).payday;
+    return getPayPeriodForWorkDate(paydayParam).payday;
 }
 
 /** Instant of local midnight at the start of a Chicago calendar day. */
@@ -266,8 +173,11 @@ export function getChicagoDayStartUtc(dateStr: string): Date {
     throw new Error(`Could not resolve Chicago midnight for ${dateStr}`);
 }
 
-/** Clock-in filter bounds: [periodStart, day after periodEnd). */
-export function getPayPeriodClockInBounds(period: PayPeriod): { startUtc: Date; endExclusiveUtc: Date } {
+/** Clock-in filter: [periodStart, day after periodEnd). */
+export function getPayPeriodClockInBounds(period: PayPeriod): {
+    startUtc: Date;
+    endExclusiveUtc: Date;
+} {
     return {
         startUtc: getChicagoDayStartUtc(period.periodStart),
         endExclusiveUtc: getChicagoDayStartUtc(addCalendarDays(period.periodEnd, 1))
@@ -289,35 +199,6 @@ export function formatPayPeriodLabel(periodStart: string, periodEnd: string): st
 export function formatPaydayLabel(payday: string): string {
     const d = parseChicagoLabelDate(payday);
     return `${d.month} ${d.day}, ${d.year}`;
-}
-
-export function formatPaydayLagLabel(paydayLagWeeks: number): string {
-    if (paydayLagWeeks === 0) {
-        return 'Friday right after period ends';
-    }
-    if (paydayLagWeeks === 1) {
-        return 'Friday of the following week';
-    }
-    return `Friday, ${paydayLagWeeks} weeks after the first Friday`;
-}
-
-/** e.g. "Thursday–Wednesday · paid Friday (following week)" */
-export function formatScheduleLabel(
-    periodStartWeekday: number,
-    paydayLagWeeks: number = DEFAULT_PAYDAY_LAG_WEEKS
-): string {
-    if (!isValidPeriodStartWeekday(periodStartWeekday)) {
-        return 'Invalid schedule';
-    }
-    const start = WEEKDAY_LABELS[periodStartWeekday];
-    const end = WEEKDAY_LABELS[periodEndWeekdayFromStart(periodStartWeekday)];
-    const lag =
-        paydayLagWeeks === 0
-            ? 'paid Friday after period ends'
-            : paydayLagWeeks === 1
-                ? 'paid Friday the following week'
-                : `paid Friday (+${paydayLagWeeks} weeks)`;
-    return `${start}–${end} · ${lag}`;
 }
 
 function parseChicagoLabelDate(dateStr: string): { month: string; day: string; year: string } {

@@ -67,7 +67,7 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
             />
 
             <p className="small" style={{ margin: '-0.5rem 0 1.25rem', color: 'var(--muted)' }}>
-                Payday is always a Friday. Legacy crew: Fri–Thu paid the next day. New system: Thu–Wed paid the Friday of the following week. Custom windows show on that person&apos;s card.
+                Pay period is Thursday–Wednesday. Payday is the Friday of the following week (e.g. period ending the 8th → paid the 17th).
             </p>
 
             <PayrollRecordPanel
@@ -132,12 +132,6 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                                                 </span>
                                             )}
                                     </div>
-                                    {(emp.pay_period_start !== summary.payPeriodStart ||
-                                        emp.pay_period_end !== summary.payPeriodEnd) && (
-                                        <div style={{ fontSize: '0.85rem', color: '#1d4ed8', marginTop: '0.35rem' }}>
-                                            Custom window: {formatPayPeriodLabel(emp.pay_period_start, emp.pay_period_end)}
-                                        </div>
-                                    )}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
@@ -153,8 +147,8 @@ export default async function PayrollPage(props: { searchParams: Promise<{ [key:
                             <EmployeePayrollTransactions
                                 employeeId={emp.employee_id}
                                 payday={summary.payday}
-                                payPeriodStart={emp.pay_period_start}
-                                payPeriodEnd={emp.pay_period_end}
+                                payPeriodStart={summary.payPeriodStart}
+                                payPeriodEnd={summary.payPeriodEnd}
                                 transactions={emp.transactions}
                                 employees={summary.activeEmployees}
                             />

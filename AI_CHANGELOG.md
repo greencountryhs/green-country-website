@@ -1,5 +1,9 @@
 # AI change log
 
+## 2026-07-13
+
+- **Simplified company payroll calendar:** Removed per-employee pay-schedule/lag controls. Everyone uses one hard-coded calendar: Thursday–Wednesday work window, paid the Friday of the following week (e.g. period ending the 8th → paid the 17th). Kept admin pay-rate editing with history. The unused `employee_pay_schedules` table (from 022/023) can remain in Supabase; the app no longer reads or writes it.
+
 ## 2026-07-10
 
 - **Per-employee pay rates & schedules:** Admins can amend hourly rates (with effective date, note, and history) and pay schedules from the employee profile. Schedules use a sliding 7-day work window plus a Friday payday lag (`0` = Friday right after period end / legacy Fri–Thu ending 9th → pay 10th; `1` = Friday of the following week / new Thu–Wed ending 8th → pay 17th). Payroll and My Pay resolve each person’s window and rate as-of the period. New hires seed onto the new-system schedule. Migrations: `022_employee_pay_rates_and_schedules.sql`, `023_employee_pay_schedule_payday_lag.sql` (apply in Supabase).

@@ -1,25 +1,8 @@
-import {
-    DEFAULT_PAYDAY_LAG_WEEKS,
-    DEFAULT_PERIOD_START_WEEKDAY,
-    getChicagoDateString,
-    isValidPaydayLagWeeks,
-    isValidPeriodStartWeekday,
-    type PayScheduleConfig
-} from './payPeriod';
+import { getChicagoDateString } from './payPeriod';
 
 export type EmployeePayRateRow = {
     employee_id: string;
     pay_rate_cents: number;
-    effective_from: string;
-    note?: string | null;
-    created_at?: string;
-    id?: string;
-};
-
-export type EmployeePayScheduleRow = {
-    employee_id: string;
-    period_start_weekday: number;
-    payday_lag_weeks?: number | null;
     effective_from: string;
     note?: string | null;
     created_at?: string;
@@ -49,38 +32,6 @@ export function resolvePayRateCents(
         return row.pay_rate_cents;
     }
     return fallbackCents;
-}
-
-export function resolvePaySchedule(
-    rows: EmployeePayScheduleRow[],
-    asOfDate: string,
-    fallback: PayScheduleConfig = {
-        periodStartWeekday: DEFAULT_PERIOD_START_WEEKDAY,
-        paydayLagWeeks: DEFAULT_PAYDAY_LAG_WEEKS
-    }
-): PayScheduleConfig {
-    const row = resolveEffectiveRow(rows, asOfDate);
-    if (!row || !isValidPeriodStartWeekday(row.period_start_weekday)) {
-        return fallback;
-    }
-
-    const lag = row.payday_lag_weeks ?? DEFAULT_PAYDAY_LAG_WEEKS;
-    return {
-        periodStartWeekday: row.period_start_weekday,
-        paydayLagWeeks: isValidPaydayLagWeeks(lag) ? lag : fallback.paydayLagWeeks
-    };
-}
-
-/** @deprecated Prefer resolvePaySchedule */
-export function resolvePeriodStartWeekday(
-    rows: EmployeePayScheduleRow[],
-    asOfDate: string,
-    fallback: number = DEFAULT_PERIOD_START_WEEKDAY
-): number {
-    return resolvePaySchedule(rows, asOfDate, {
-        periodStartWeekday: fallback,
-        paydayLagWeeks: DEFAULT_PAYDAY_LAG_WEEKS
-    }).periodStartWeekday;
 }
 
 /** Group history rows by employee_id, each list sorted effective_from DESC. */

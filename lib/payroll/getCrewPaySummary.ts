@@ -1,16 +1,13 @@
 import { createClient } from '@/utils/supabase/server';
 import {
-    getChicagoDateString,
     getPayPeriodClockInBounds,
     getPayPeriodForPayday,
-    resolvePaydayParamForSchedule
+    resolvePaydayParam
 } from './payPeriod';
 import {
     groupByEmployeeSortedDesc,
     resolvePayRateCents,
-    resolvePaySchedule,
-    type EmployeePayRateRow,
-    type EmployeePayScheduleRow
+    type EmployeePayRateRow
 } from './compensation';
 import { buildEmployeePayrollSummary } from './buildEmployeePayrollSummary';
 import type { CrewPaySummary, PayrollTransactionRecord } from './types';
@@ -40,23 +37,6 @@ export async function getCrewPaySummary(
         return { data: null, error: 'No crew profile is linked to your account.' };
     }
 
-    const { data: scheduleRows, error: scheduleError } = await supabase
-        .from('employee_pay_schedules')
-        .select('id, employee_id, period_start_weekday, payday_lag_weeks, effective_from, note, created_at')
-        .eq('employee_id', employee.id);
-
-    if (scheduleError) {
-        return {
-            data: null,
-            error:
-                'Failed to load your pay schedule.' +
-                (scheduleError.message.includes('employee_pay_schedules') ||
-                scheduleError.message.includes('payday_lag_weeks')
-                    ? ' Ask an admin to apply migrations 022 and 023.'
-                    : '')
-        };
-    }
-
     const { data: rateRows, error: rateError } = await supabase
         .from('employee_pay_rates')
         .select('id, employee_id, pay_rate_cents, effective_from, note, created_at')
@@ -73,41 +53,20 @@ export async function getCrewPaySummary(
         };
     }
 
-    const schedules =
-        groupByEmployeeSortedDesc((scheduleRows || []) as EmployeePayScheduleRow[]).get(
-            employee.id
-        ) || [];
     const rates =
         groupByEmployeeSortedDesc((rateRows || []) as EmployeePayRateRow[]).get(employee.id) ||
         [];
 
-    const today = getChicagoDateString();
-    const scheduleHint = resolvePaySchedule(
-        schedules,
-        paydayParam && /^\d{4}-\d{2}-\d{2}$/.test(paydayParam) ? paydayParam : today
-    );
-
     let payday: string;
     try {
-        payday = resolvePaydayParamForSchedule(
-            paydayParam,
-            scheduleHint.periodStartWeekday,
-            scheduleHint.paydayLagWeeks,
-            today
-        );
+        payday = resolvePaydayParam(paydayParam);
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Invalid pay period' };
     }
 
-    const schedule = resolvePaySchedule(schedules, payday);
-
     let period;
     try {
-        period = getPayPeriodForPayday(
-            payday,
-            schedule.periodStartWeekday,
-            schedule.paydayLagWeeks
-        );
+        period = getPayPeriodForPayday(payday);
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Invalid pay period' };
     }
